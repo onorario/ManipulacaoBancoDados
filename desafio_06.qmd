@@ -1,0 +1,239 @@
+---
+title: "Desafio - 06"
+author: "Luiz Fernando de Oliveira Pereira RA:267356"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+## Quarto
+
+```{r setup}
+# 1.Baixe o arquivo disco.db e armazene na variável path o caminho completo (pasta) na qual o arquivo foi gravado. Utilize o comando file.path() para combinar a variável path com o nome do arquivo (disco.db) e obter o nome do arquivo com seu respectivo caminho. Armazene este resultado na variável fname.
+
+
+library(DBI)
+library(RSQLite)
+
+# 1) caminho da pasta 
+path <- "dados"   
+
+# 2) monta o caminho completo para o arquivo
+fname <- file.path(path, "disco.db")
+
+# 3) checar se o arquivo existe antes de conectar
+file.exists(fname)  # deve retornar TRUE
+
+
+
+```
+
+```{r consulta1}
+# 2. Utilizando o pacote RSQLite, conecte-se ao arquivo de banco de dados. Armazene a conexão na variável conn.
+
+# conectando ao arquivo de banco de dados com DBI::dbConnect 
+
+
+# Conecta ao banco
+conn <- dbConnect(SQLite(), dbname = fname)
+```
+
+```{r consulta2}
+# 3.Liste as tabelas existentes no banco de dados.
+
+# Lista as tabelas do banco
+dbListTables(conn)
+
+dbGetQuery(conn, "SELECT name FROM sqlite_master WHERE type='table';")  # outro método para ver as lista de tabelas do banco
+
+```
+
+```{r consulta3}
+# 4.Identifique os nomes de todas as colunas existentes na tabela customers.
+
+# Lista os campos (colunas) da tabela customers
+dbListFields(conn, "customers")
+```
+
+```{r consulta4}
+#5.Utilizando apenas SQLite, com o apoio do comando dbGetQuery, identifique quantos clientes estão atualmente cadastrados neste banco de dados.
+
+# Conta quantos clientes existem
+dbGetQuery(conn, "
+  SELECT COUNT(*) AS total_clientes
+  FROM customers;
+")
+```
+
+```{r consulta5}
+#6.Utilizando apenas SQLite, identifique o número de países diferentes em que moram os clientes encontrados acima.
+
+# Conta quantos países diferentes existem
+dbGetQuery(conn, "
+  SELECT COUNT(DISTINCT Country) AS total_paises
+  FROM customers;
+")
+
+```
+
+```{r consulta6}
+#7.Utilizando apenas SQLite, quantos clientes existem por país? A tabela resultante deve conter o nome do país e a respectiva contagem, além de ser ordenada de maneira decrescente pela referida contagem.
+
+# Conta clientes por país
+dbGetQuery(conn, "
+  SELECT Country, COUNT(*) AS num_clientes --Selecionando clientes e contando
+  FROM customers --Filtrando de customers
+  GROUP BY Country --Agrupando por Country
+  ORDER BY num_clientes DESC;
+")
+
+```
+
+```{r consulta7}
+#8.Quais são os 5 países com mais clientes registrados? Use apenas SQLite.
+
+# Top 5 países com mais clientes
+dbGetQuery(conn, "
+  SELECT Country, COUNT(*) AS num_clientes
+  FROM customers --Selecionando a tabela customers
+  GROUP BY Country --Agrupando por Country
+  ORDER BY num_clientes DESC --Deixando em ordem decrescente
+  LIMIT 5; --Limitando a 5
+")
+
+```
+
+```{r consulta8}
+#9. Quais são os países registrados que possuem apenas 6 letras no nome?
+
+# Países com nomes de 6 letras
+dbGetQuery(conn, "
+  SELECT DISTINCT Country -- Selecionando os países distintos (sem repetição) da tabela customers
+  
+  FROM customers 
+  WHERE LENGTH(Country) = 6; Filtrando apenas os países cujo nome tem exatamente 6 caracteres
+")
+
+
+```
+
+```{r consulta9}
+#10.Quais foram as músicas compradas por clientes brasileiros?
+
+# Consulta SQL comentada:
+dbGetQuery(conn, "
+  -- Selecionando o nome da música (coluna Name da tabela tracks)
+  SELECT DISTINCT t.Name AS Musica
+  FROM customers c
+  
+  -- Entrelaçando customers (c) com invoices (i), 
+  -- já que cada cliente pode ter várias faturas
+  JOIN invoices i 
+    ON c.CustomerId = i.CustomerId
+  
+  -- Ligando invoices (i) com invoice_items (ii), 
+  -- que contém os itens (as músicas compradas) de cada fatura
+  JOIN invoice_items ii 
+    ON i.InvoiceId = ii.InvoiceId
+  
+  -- Ligando invoice_items (ii) com tracks (t),
+  -- que contém as informações das músicas (nome, artista, etc.)
+  JOIN tracks t 
+    ON ii.TrackId = t.TrackId
+  
+  -- E para finalizar é necessário filtra apenas os clientes que são do Brasil
+  WHERE c.Country = 'Brazil';
+")
+
+```
+
+Como o "#11.Desconecte do banco de dados.", pede para desconectar do banco, deixei ele no chunck depois das perguntas extras.
+
+## Perguntas Extras do Desafio
+
+```{r consulta10}
+# Qual o álbum mais tocado por pais? [0.5 na P2]
+
+big_album <- dbGetQuery(conn, "
+  -- Selecionando apenas o álbum mais tocado
+  SELECT Country, Album, Total_Tocadas
+  FROM (
+    -- Parte interna: calculando quantas vezes cada álbum foi tocado em cada país
+    SELECT c.Country,                    -- País do cliente
+           al.Title AS Album,            -- Nome do álbum
+           COUNT(*) AS Total_Tocadas,    -- Total de músicas compradas desse álbum
+           
+           -- Criando um ranking dentro de cada país, do álbum mais tocado para o menos
+           ROW_NUMBER() OVER (
+             PARTITION BY c.Country      -- ranking separado por país
+             ORDER BY COUNT(*) DESC      -- ordena do maior para o menor
+           ) AS rank
+           
+    FROM customers c
+    JOIN invoices i 
+      ON c.CustomerId = i.CustomerId     -- conecta clientes com suas faturas
+    JOIN invoice_items ii 
+      ON i.InvoiceId = ii.InvoiceId      -- conecta faturas com os itens comprados
+    JOIN tracks t 
+      ON ii.TrackId = t.TrackId          -- conecta itens com as músicas
+    JOIN albums al
+      ON t.AlbumId = al.AlbumId          -- conecta músicas com os álbuns
+    
+    GROUP BY c.Country, al.Title         -- agrupamento: país + álbum
+  ) sub
+  
+  WHERE rank = 1                         -- mantém apenas o álbum mais tocado por país
+  ORDER BY Total_Tocadas DESC;           -- ordena pelos mais tocados no geral
+")
+
+
+big_album
+```
+
+```{r consulta12}
+# Qual o artista mais tocado por pais? [0.5 na P2]
+
+big_artirst <- dbGetQuery(conn, "
+  -- Selecionando apenas o artista mais tocado
+  SELECT Country, Artista, Total_Tocadas
+  FROM (
+    -- Parte interna: calculando quantas vezes cada artista foi tocado em cada país
+    SELECT c.Country,                    -- País do cliente
+           ar.Name AS Artista,           -- Nome do artista
+           COUNT(*) AS Total_Tocadas,    -- Total de músicas compradas desse artista
+           
+           -- Criando um ranking dentro de cada país, do artista mais tocado para o menos tocado
+           ROW_NUMBER() OVER (
+             PARTITION BY c.Country      -- ranking separado por país
+             ORDER BY COUNT(*) DESC      -- ordena do maior para o menor
+           ) AS rank
+           
+    FROM customers c
+    JOIN invoices i 
+      ON c.CustomerId = i.CustomerId     -- conecta clientes com suas faturas
+    JOIN invoice_items ii 
+      ON i.InvoiceId = ii.InvoiceId      -- conecta faturas com os itens comprados
+    JOIN tracks t 
+      ON ii.TrackId = t.TrackId          -- conecta itens com as músicas
+    JOIN albums al
+      ON t.AlbumId = al.AlbumId          -- conecta músicas com álbuns
+    JOIN artists ar
+      ON al.ArtistId = ar.ArtistId       -- conecta álbuns com artistas
+    
+    GROUP BY c.Country, ar.Name          -- agrupamento: país + artista
+  ) sub
+  
+  WHERE rank = 1                         -- mantém só os artista mais tocados de cada país
+  ORDER BY Total_Tocadas DESC;           -- ordena pelos mais tocados no geral
+")
+
+
+big_artirst
+```
+
+```{r final}
+#11.Desconecte do banco de dados.
+
+dbDisconnect(conn)
+```
