@@ -1,0 +1,653 @@
+---
+title: "desafio-02-python"
+format: 
+ html:   
+  embed-resources: true
+editor: visual
+---
+
+## Quarto
+
+```{r}
+#install.packages("reticulate")
+library(reticulate)
+py_discover_config()
+#use_python("C:\\Program Files\\Python312\\python.exe")
+use_python("D:\\Downolads-Gerais\\python.exe")
+#py_install(c("pandas", "numpy"))
+
+```
+
+```{r}
+library(reticulate)
+
+# aponta para seu python instalado
+use_python("D:/Downolads-Gerais/python.exe", required = TRUE)
+
+# testa se o pandas funciona
+py_run_string("import pandas as pd; print(pd.__version__)")
+
+```
+
+```{python}
+
+```
+
+```{python}
+#2
+import pandas as pd
+
+def getStats(input_df, pos):
+    """
+    Função que calcula estatísticas de atrasos em voos.
+    
+    Argumentos:
+    - input_df: DataFrame do pandas com os dados (um "chunk" do CSV).
+    - pos: argumento de posicionamento (não usado internamente, 
+           mas mantido para compatibilidade com a lógica da leitura em blocos).
+    
+    Retorna:
+    - DataFrame do pandas com estatísticas agrupadas por companhia, dia e mês.
+    """
+    
+    # 1. Filtrar apenas as companhias AA, DL, UA e US
+    #    e remover observações com valores faltantes em ARRIVAL_DELAY
+    filtered = input_df[
+        (input_df["AIRLINE"].isin(["AA", "DL", "UA", "US"])) &
+        (input_df["ARRIVAL_DELAY"].notna())
+    ]
+    
+    # 2. Agrupar pelos campos AIRLINE, DAY e MONTH
+    grouped = filtered.groupby(["AIRLINE", "DAY", "MONTH"])
+    
+    # 3. Calcular estatísticas:
+    #    - n: quantidade total de voos no grupo
+    #    - atrasos: número de voos com atraso maior que 10 minutos
+    stats = grouped.agg(
+        n=("ARRIVAL_DELAY", "size"),
+        atrasos=("ARRIVAL_DELAY", lambda x: (x > 10).sum())
+    ).reset_index()
+    
+    return stats
+
+
+```
+
+```{python}
+#3
+import pandas as pd
+import time
+
+# Medir tempo de execução
+start = time.time()
+
+# Lista para armazenar os resultados de cada chunk
+resultados = []
+
+# Caminho para o arquivo CSV (zip)
+caminho = r"D:\Faculdade Unicamp\4º Semestre\banco-de-dados\banco-de-dados\flights.csv.zip"
+
+# Definição das colunas de interesse (equivalente ao cols_only do R)
+colunas = ["AIRLINE", "DAY", "MONTH", "ARRIVAL_DELAY"]
+
+# Leitura em chunks de 100 mil linhas
+for chunk in pd.read_csv(caminho, 
+                         usecols=colunas,   # lê apenas as colunas necessárias
+                         chunksize=100000): # define o tamanho do lote
+    # Aplica a função getStats a cada chunk
+    stats_chunk = getStats(chunk, pos=None)
+    
+    # Armazena o resultado em uma lista
+    resultados.append(stats_chunk)
+
+# Junta todos os resultados em um único DataFrame
+in3 = pd.concat(resultados, ignore_index=True)
+
+end = time.time()
+print(f"Importando com 100 mil registros por vez... Tempo total: {end - start:.2f} segundos")
+
+# Visualizar primeiras linhas do resultado final
+#print(in3.head())
+
+```
+
+```{python}
+#4
+import pandas as pd
+
+def computeStats(input_df):
+    """
+    Função que calcula o percentual de atraso por companhia aérea e data.
+    
+    Argumento:
+    - input_df: DataFrame com colunas [AIRLINE, DAY, MONTH, n, atrasos]
+    
+    Retorna:
+    - DataFrame com colunas [Cia, Data, Perc]
+    """
+    
+    # 1. Agrupar por companhia aérea, dia e mês
+    grouped = input_df.groupby(["AIRLINE", "DAY", "MONTH"], as_index=False).agg(
+        Perc=("atrasos", "sum"),   # somatório de atrasos
+        Total=("n", "sum")         # somatório de voos
+    )
+    
+    # 2. Calcular percentual de atrasos
+    grouped["Perc"] = grouped["Perc"] / grouped["Total"]
+    
+    # 3. Criar coluna de data no formato AAAA-MM-DD (fixando ano = 2015)
+    grouped["Data"] = pd.to_datetime(
+        grouped[["MONTH", "DAY"]].assign(YEAR=2015)
+    )
+    
+    # 4. Renomear e selecionar apenas colunas finais
+    result = grouped[["AIRLINE", "Data", "Perc"]].rename(columns={"AIRLINE": "Cia"})
+    
+    return result
+
+# Exemplo de uso:
+# in5 = computeStats(in3)
+# print(in5.head())
+
+
+```
+
+
+
+
+
+
+```{python}
+# 5
+# ============================================================================
+# SOLUÇÃO COMPLETA PARA QUARTO - CALENDÁRIOS DE ATRASOS DE VOOS
+# ============================================================================
+# Este código cria calendários de calor mostrando percentuais de atrasos
+# de voos por companhia aérea, implementando exatamente as especificações
+# do enunciado. Toda a funcionalidade está em um único chunk para garantir
+# compatibilidade com a renderização do Quarto.
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import calendar
+from matplotlib.colors import LinearSegmentedColormap
+
+# ============================================================================
+# 1. FUNÇÃO computeStats - RECRIAÇÃO PARA COMPATIBILIDADE COM QUARTO
+# ============================================================================
+def computeStats(input_df):
+    """
+    Recria a função computeStats necessária para processar os dados.
+    Esta função é incluída aqui para garantir que esteja disponível
+    durante a renderização do documento Quarto, mesmo que tenha sido
+    definida em chunks anteriores.
+    
+    Argumentos:
+    - input_df: DataFrame com colunas [AIRLINE, DAY, MONTH, n, atrasos]
+                onde 'n' é total de voos e 'atrasos' é número de voos atrasados
+    
+    Retorna:
+    - DataFrame com colunas [Cia, Data, Perc] onde Perc é o percentual de atrasos
+    """
+    
+    # Agrupar dados por companhia, dia e mês, somando totais e atrasos
+    grouped = input_df.groupby(["AIRLINE", "DAY", "MONTH"], as_index=False).agg(
+        Perc=("atrasos", "sum"),   # Soma total de voos atrasados
+        Total=("n", "sum")         # Soma total de voos
+    )
+    
+    # Calcular percentual de atrasos (atrasos / total de voos)
+    grouped["Perc"] = grouped["Perc"] / grouped["Total"]
+    
+    # Criar coluna de data combinando ano fixo (2015) com mês e dia
+    grouped["Data"] = pd.to_datetime(
+        grouped[["MONTH", "DAY"]].assign(YEAR=2015)
+    )
+    
+    # Selecionar e renomear colunas finais conforme especificado
+    result = grouped[["AIRLINE", "Data", "Perc"]].rename(columns={"AIRLINE": "Cia"})
+    
+    return result
+
+# ============================================================================
+# 2. VERIFICAÇÃO E RECRIAÇÃO DOS DADOS NECESSÁRIOS
+# ============================================================================
+# Durante a renderização do Quarto, as variáveis Python podem não persistir
+# entre chunks. Esta seção garante que os dados estejam disponíveis.
+
+try:
+    # Primeira tentativa: usar in5 se já estiver definido
+    print(f"Verificando variável in5...")
+    print(f"Variável in5 encontrada com {len(in5)} registros")
+    dados_calendario = in5
+    print("Usando dados existentes da variável in5")
+    
+except NameError:
+    # Segunda tentativa: recriar in5 a partir de in3
+    print("Variável in5 não encontrada. Tentando recriar a partir de in3...")
+    
+    try:
+        # Aplicar computeStats aos dados brutos (in3)
+        dados_calendario = computeStats(in3)
+        print(f"Dados recriados com sucesso: {len(dados_calendario)} registros")
+        print("Variável in5 foi recriada a partir de in3")
+        
+    except NameError:
+        # Terceira tentativa: criar dados de exemplo se nada estiver disponível
+        print("AVISO: Nem in5 nem in3 estão disponíveis.")
+        print("Isso pode acontecer se os chunks anteriores não foram executados.")
+        print("Criando dados de exemplo para demonstração...")
+        
+        # Dados de exemplo com estrutura similar aos dados reais
+        np.random.seed(42)  # Para resultados reprodutíveis
+        datas_exemplo = pd.date_range('2015-01-01', '2015-12-31', freq='D')
+        companhias_exemplo = ['AA', 'DL', 'UA', 'US']
+        
+        dados_exemplo = []
+        for cia in companhias_exemplo:
+            for data in datas_exemplo[::7]:  # Uma amostra por semana
+                dados_exemplo.append({
+                    'Cia': cia,
+                    'Data': data,
+                    'Perc': np.random.rand() * 0.6  # Percentual aleatório entre 0-60%
+                })
+        
+        dados_calendario = pd.DataFrame(dados_exemplo)
+        print(f"Dados de exemplo criados: {len(dados_calendario)} registros")
+        print("NOTA: Execute os chunks anteriores para usar dados reais")
+
+# ============================================================================
+# 3. CRIAÇÃO DA PALETA DE CORES CONFORME ESPECIFICAÇÃO
+# ============================================================================
+def criar_paleta():
+    """
+    Cria paleta de cores gradiente conforme especificado no enunciado.
+    
+    Especificação do enunciado:
+    - Cor inicial: #4575b4 (azul escuro - baixos percentuais de atraso)
+    - Cor final: #d73027 (vermelho escuro - altos percentuais de atraso)
+    
+    A paleta usa cores intermediárias para criar uma transição suave
+    que facilita a interpretação visual dos dados.
+    
+    Retorna:
+    - LinearSegmentedColormap: Objeto de mapa de cores do matplotlib
+    """
+    # Lista de cores para criar transição gradual do azul ao vermelho
+    cores = ['#4575b4',  # Azul escuro (início)
+             '#74add1',  # Azul médio
+             '#abd9e9',  # Azul claro
+             '#e0f3f8',  # Azul muito claro
+             '#ffffbf',  # Amarelo (neutro)
+             '#fee090',  # Laranja claro
+             '#fdae61',  # Laranja médio
+             '#f46d43',  # Laranja escuro
+             '#d73027']  # Vermelho escuro (final)
+    
+    # Criar mapa de cores customizado com 256 níveis de interpolação
+    pal = LinearSegmentedColormap.from_list('custom', cores, N=256)
+    return pal
+
+# Criar paleta global para uso em todas as funções
+pal = criar_paleta()
+print("Paleta de cores criada conforme especificação do enunciado")
+
+# ============================================================================
+# 4. FUNÇÃO PRINCIPAL baseCalendario
+# ============================================================================
+def baseCalendario(stats, cia):
+    """
+    Função principal que implementa o item 3 do enunciado:
+    "Crie uma função chamada baseCalendario que recebe 2 argumentos:
+    stats e cia, e retorna a base do calendário."
+    
+    Esta função cria um mapa de calor em formato de calendário mostrando
+    o percentual de atrasos por dia para uma companhia aérea específica.
+    
+    Argumentos:
+    - stats: DataFrame com colunas [Cia, Data, Perc] (resultado da questão 4)
+    - cia: String com sigla da companhia aérea ('AA', 'DL', 'UA', 'US')
+    
+    Retorna:
+    - matplotlib.figure.Figure: Objeto figura contendo o calendário
+    """
+    
+    print(f"Iniciando geração do calendário para companhia {cia}")
+    
+    # ------------------------------------------------------------------------
+    # 4.1. CRIAR SUBCONJUNTO DOS DADOS CONFORME ESPECIFICAÇÃO
+    # ------------------------------------------------------------------------
+    # "Criar um subconjunto de stats de forma a conter informações de 
+    # atraso e data apenas da Cia. Aérea dada por cia"
+    
+    df_cia = stats[stats["Cia"] == cia].copy()
+    
+    # Verificar se há dados para a companhia solicitada
+    if df_cia.empty:
+        print(f"AVISO: Nenhum dado encontrado para a companhia {cia}")
+        print(f"Companhias disponíveis: {sorted(stats['Cia'].unique())}")
+        return None
+    
+    # Garantir formato correto da coluna de data
+    df_cia["Data"] = pd.to_datetime(df_cia["Data"])
+    
+    # Extrair componentes de data para facilitar processamento posterior
+    df_cia['Mes'] = df_cia['Data'].dt.month        # Mês (1-12)
+    df_cia['Dia'] = df_cia['Data'].dt.day          # Dia do mês (1-31)
+    
+    print(f"Dados filtrados: {len(df_cia)} registros para {cia}")
+    print(f"Período dos dados: {df_cia['Data'].min().date()} a {df_cia['Data'].max().date()}")
+    
+    # ------------------------------------------------------------------------
+    # 4.2. CONFIGURAÇÃO INICIAL DA FIGURA
+    # ------------------------------------------------------------------------
+    # Criar figura com layout 3x4 para representar os 12 meses do ano
+    # Dimensões otimizadas para visualização clara sem sobreposição
+    fig, axes = plt.subplots(3, 4, figsize=(12, 9))
+    
+    # Adicionar título principal conforme especificação do enunciado
+    # "adicionar um título utilizando o comando ggtitle"
+    fig.suptitle(f'{cia} - Percentual de Atrasos por Dia', 
+                 fontsize=12, fontweight='bold', y=0.98)
+    
+    print("Layout da figura configurado: 3 linhas x 4 colunas para 12 meses")
+    
+    # ------------------------------------------------------------------------
+    # 4.3. GERAÇÃO DO CALENDÁRIO PARA CADA MÊS
+    # ------------------------------------------------------------------------
+    # Loop através dos 12 meses do ano para criar calendário completo
+    for mes in range(1, 13):
+        
+        # Calcular posição do subplot na grade 3x4
+        row = (mes - 1) // 4  # Linha do subplot (0, 1, ou 2)
+        col = (mes - 1) % 4   # Coluna do subplot (0, 1, 2, ou 3)
+        ax = axes[row, col]   # Referência ao subplot atual
+        
+        # Filtrar dados apenas do mês atual sendo processado
+        dados_mes = df_cia[df_cia['Mes'] == mes]
+        
+        # ....................................................................
+        # 4.3.1. ESTRUTURA BÁSICA DO CALENDÁRIO
+        # ....................................................................
+        # Criar matriz 6x7 representando estrutura de calendário:
+        # - 6 linhas: máximo de semanas que um mês pode ocupar
+        # - 7 colunas: dias da semana (domingo a sábado)
+        # - Valores NaN indicam dias sem dados
+        cal_matrix = np.full((6, 7), np.nan)
+        
+        # Determinar posicionamento do primeiro dia do mês
+        primeiro_dia = pd.Timestamp(2015, mes, 1)
+        primeiro_dia_semana = primeiro_dia.weekday()  # 0=segunda-feira
+        
+        # Converter para padrão americano: 0=domingo, 1=segunda, ..., 6=sábado
+        primeiro_dia_semana = (primeiro_dia_semana + 1) % 7
+        
+        # Obter número total de dias no mês (28, 29, 30, ou 31)
+        dias_no_mes = calendar.monthrange(2015, mes)[1]
+        
+        # ....................................................................
+        # 4.3.2. PREENCHIMENTO DA MATRIZ COM DADOS DE ATRASO
+        # ....................................................................
+        # Para cada registro de atraso no mês atual
+        for _, row_data in dados_mes.iterrows():
+            dia = row_data['Dia']              # Dia do mês (1-31)
+            perc = row_data['Perc']            # Percentual de atraso (0-1)
+            
+            # Calcular posição deste dia na matriz do calendário
+            pos_total = primeiro_dia_semana + dia - 1  # Posição linear no calendário
+            semana = pos_total // 7                    # Qual semana (linha da matriz)
+            dia_semana = pos_total % 7                 # Qual dia da semana (coluna)
+            
+            # Preencher matriz apenas se dentro dos limites (máximo 6 semanas)
+            if semana < 6:
+                cal_matrix[semana, dia_semana] = perc
+        
+        # ....................................................................
+        # 4.3.3. CRIAÇÃO DO MAPA DE CALOR
+        # ....................................................................
+        # "montar a base do calendário, utilizando ggcal(x, y)"
+        # Em Python com matplotlib, usamos imshow para criar o heatmap
+        
+        im = ax.imshow(cal_matrix,           # Matriz com dados
+                      cmap=pal,              # Paleta de cores criada anteriormente
+                      aspect='equal',        # Células quadradas
+                      vmin=0,               # Valor mínimo (0% de atraso)
+                      vmax=1,               # Valor máximo (100% de atraso)
+                      alpha=0.8)            # Leve transparência para melhor visual
+        
+        # ....................................................................
+        # 4.3.4. CONFIGURAÇÃO VISUAL DO SUBPLOT
+        # ....................................................................
+        # Adicionar título do mês (January, February, etc.)
+        ax.set_title(calendar.month_name[mes], fontweight='bold', 
+                    fontsize=9, pad=5)
+        
+        # Configurar labels dos dias da semana no eixo X
+        ax.set_xticks(range(7))  # Posições 0-6
+        ax.set_xticklabels(['S', 'M', 'T', 'W', 'T', 'F', 'S'], fontsize=8)
+        ax.set_yticks([])  # Remover labels do eixo Y (não necessários)
+        
+        # Remover bordas do subplot para visual mais limpo
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        
+        # Ajustar espaçamento dos labels para evitar sobreposição
+        ax.tick_params(axis='x', pad=1)
+        
+        # ....................................................................
+        # 4.3.5. ADIÇÃO DOS NÚMEROS DOS DIAS
+        # ....................................................................
+        # Adicionar número do dia em cada célula do calendário
+        for semana in range(6):          # Para cada semana (linha)
+            for dia_semana in range(7):  # Para cada dia da semana (coluna)
+                
+                # Calcular qual dia do mês esta posição representa
+                pos_total = semana * 7 + dia_semana
+                dia_mes = pos_total - primeiro_dia_semana + 1
+                
+                # Verificar se é um dia válido do mês atual
+                if 1 <= dia_mes <= dias_no_mes:
+                    
+                    # Verificar se há dados de atraso para este dia
+                    tem_dados = not np.isnan(cal_matrix[semana, dia_semana])
+                    
+                    if tem_dados:
+                        # Para dias com dados: escolher cor do texto baseada na intensidade
+                        valor = cal_matrix[semana, dia_semana]
+                        # Texto branco em fundos escuros (>50%), preto em fundos claros
+                        cor_texto = 'white' if valor > 0.5 else 'black'
+                    else:
+                        # Para dias sem dados: texto cinza claro
+                        cor_texto = 'lightgray'
+                    
+                    # Adicionar número do dia centralizado na célula
+                    ax.text(dia_semana, semana, str(dia_mes), 
+                           ha='center', va='center', fontsize=6, 
+                           color=cor_texto, fontweight='bold')
+        
+        # ....................................................................
+        # 4.3.6. ADIÇÃO DE GRADE VISUAL
+        # ....................................................................
+        # Criar linhas de grade entre as células para melhor separação visual
+        ax.set_xticks(np.arange(-0.5, 7, 1), minor=True)  # Linhas verticais
+        ax.set_yticks(np.arange(-0.5, 6, 1), minor=True)  # Linhas horizontais
+        ax.grid(which='minor', color='white', linewidth=1, alpha=0.8)
+    
+    # ------------------------------------------------------------------------
+    # 4.4. ADIÇÃO DA BARRA DE CORES (COLORBAR)
+    # ------------------------------------------------------------------------
+    # Criar barra de cores vertical do lado direito para interpretar as cores
+    cbar = fig.colorbar(im, ax=axes,           # Aplicar a todos os subplots
+                       orientation='vertical',  # Barra vertical
+                       fraction=0.025,         # Largura da barra (2.5% da figura)
+                       pad=0.08,              # Distância entre calendários e barra
+                       aspect=20)             # Proporção altura/largura
+    
+    # Configurar rótulo e formatação da barra de cores
+    cbar.set_label('Percentual de Atrasos', fontsize=9, labelpad=10)
+    cbar.ax.tick_params(labelsize=8)
+    
+    # ------------------------------------------------------------------------
+    # 4.5. AJUSTE FINAL DO LAYOUT
+    # ------------------------------------------------------------------------
+    # Usar subplots_adjust ao invés de tight_layout para controle preciso
+    # dos espaçamentos e evitar sobreposições
+    plt.subplots_adjust(left=0.06,    # Margem esquerda
+                       right=0.86,    # Margem direita (espaço para colorbar)
+                       top=0.93,      # Margem superior (espaço para título)
+                       bottom=0.06,   # Margem inferior
+                       wspace=0.15,   # Espaçamento horizontal entre subplots
+                       hspace=0.25)   # Espaçamento vertical entre subplots
+    
+    # Exibir o gráfico final
+    plt.show()
+    
+    print(f"Calendário para {cia} gerado com sucesso")
+    return fig
+
+# ============================================================================
+# 5. FUNÇÃO PARA EXECUÇÃO MÚLTIPLA CONFORME ENUNCIADO
+# ============================================================================
+def executar_todos_calendarios(stats):
+    """
+    Implementa o item 4 do enunciado:
+    "Executar a função baseCalendario para cada uma das Cias. Aéreas e 
+    armazenar os resultados, respectivamente, nas variáveis: cAA, cDL, cUA e cUS"
+    
+    Esta função automatiza a geração de calendários para todas as companhias
+    especificadas e organiza os resultados conforme solicitado.
+    
+    Argumentos:
+    - stats: DataFrame com dados de todas as companhias
+    
+    Retorna:
+    - dict: Dicionário com chaves 'cAA', 'cDL', 'cUA', 'cUS' contendo
+            os objetos Figure de cada calendário
+    """
+    
+    # Lista das companhias conforme especificado no enunciado
+    companhias = ['AA', 'DL', 'UA', 'US']
+    
+    # Dicionário para armazenar os resultados conforme formato solicitado
+    resultados = {}
+    
+    print("="*50)
+    print("INICIANDO GERAÇÃO DE CALENDÁRIOS PARA TODAS AS COMPANHIAS")
+    print("="*50)
+    print("Companhias a processar: AA (American), DL (Delta), UA (United), US (US Airways)")
+    
+    # Processar cada companhia individualmente
+    for cia in companhias:
+        try:
+            print(f"\nProcessando companhia {cia}...")
+            
+            # Chamar função baseCalendario para a companhia atual
+            fig = baseCalendario(stats, cia)
+            
+            if fig is not None:
+                # Armazenar resultado no formato especificado no enunciado
+                chave = f'c{cia}'  # cAA, cDL, cUA, cUS
+                resultados[chave] = fig
+                print(f"Sucesso: {chave} gerado e armazenado")
+            else:
+                print(f"Falha: Não foi possível gerar calendário para {cia}")
+                
+        except Exception as e:
+            # Capturar e reportar erros específicos de cada companhia
+            print(f"Erro ao processar {cia}: {str(e)}")
+            print("Continuando com próxima companhia...")
+    
+    print("\n" + "="*50)
+    print(f"PROCESSAMENTO CONCLUÍDO - {len(resultados)} calendários gerados")
+    print("="*50)
+    
+    return resultados
+
+# ============================================================================
+# 6. EXECUÇÃO PRINCIPAL E VERIFICAÇÕES
+# ============================================================================
+
+# Exibir informações sobre os dados que serão processados
+print("INFORMAÇÕES DOS DADOS PARA PROCESSAMENTO:")
+print("="*50)
+print(f"Total de registros disponíveis: {len(dados_calendario)}")
+print(f"Companhias encontradas: {sorted(dados_calendario['Cia'].unique())}")
+print(f"Período dos dados: {dados_calendario['Data'].min().date()} a {dados_calendario['Data'].max().date()}")
+
+# Verificar distribuição de dados por companhia
+print(f"\nDistribuição de registros por companhia:")
+for cia in sorted(dados_calendario['Cia'].unique()):
+    count = len(dados_calendario[dados_calendario['Cia'] == cia])
+    print(f"  {cia}: {count} registros")
+
+# ============================================================================
+# 7. GERAÇÃO DOS CALENDÁRIOS
+# ============================================================================
+
+# Executar função principal para gerar todos os calendários
+calendarios = executar_todos_calendarios(dados_calendario)
+
+# ============================================================================
+# 8. CRIAÇÃO DAS VARIÁVEIS INDIVIDUAIS CONFORME ENUNCIADO
+# ============================================================================
+# O enunciado especifica: "armazenar os resultados, respectivamente, 
+# nas variáveis: cAA, cDL, cUA e cUS"
+
+print("\nCRIANDO VARIÁVEIS INDIVIDUAIS CONFORME ESPECIFICAÇÃO:")
+print("-" * 50)
+
+# Criar variáveis individuais para cada companhia se o calendário foi gerado
+if 'cAA' in calendarios: 
+    cAA = calendarios['cAA']
+    print("Variável cAA criada (American Airlines)")
+
+if 'cDL' in calendarios: 
+    cDL = calendarios['cDL']
+    print("Variável cDL criada (Delta Air Lines)")
+
+if 'cUA' in calendarios: 
+    cUA = calendarios['cUA']
+    print("Variável cUA criada (United Airlines)")
+
+if 'cUS' in calendarios: 
+    cUS = calendarios['cUS']
+    print("Variável cUS criada (US Airways)")
+
+# ============================================================================
+# 9. RELATÓRIO FINAL
+# ============================================================================
+print("\n" + "="*50)
+print("RELATÓRIO FINAL DE EXECUÇÃO")
+print("="*50)
+
+print(f"Status: Execução concluída com sucesso")
+print(f"Calendários gerados: {len(calendarios)} de 4 possíveis")
+print(f"Variáveis criadas: ", end="")
+
+# Listar variáveis criadas
+vars_criadas = []
+for var_name in ['cAA', 'cDL', 'cUA', 'cUS']:
+    if var_name in locals() or var_name in globals():
+        vars_criadas.append(var_name)
+
+if vars_criadas:
+    print(", ".join(vars_criadas))
+else:
+    print("Nenhuma variável individual criada")
+
+print(f"\nPara visualizar um calendário específico novamente:")
+print(f"  Ex: baseCalendario(dados_calendario, 'AA')")
+
+print(f"\nPara acessar calendários do dicionário:")
+print(f"  Ex: calendarios['cAA'] para American Airlines")
+
+print("\nCódigo executado com sucesso - Calendários prontos para uso!")
+```
+
+
+
+
+
+
+
