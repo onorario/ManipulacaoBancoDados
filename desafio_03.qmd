@@ -1,0 +1,111 @@
+---
+title: "Banco de dados Desafio_03"
+author: "Luiz Fernando de Oliveira Pereira RA: 267356"
+format: 
+  pdf:
+    pdf-engine: lualatex
+editor: visual
+---
+
+## Quarto
+
+## Arquivo Parquet
+
+-   É um formato colunar para armazenar dados dados que foi criado em 2013 inicialmente pelo Twitter e Cloudera
+
+-   Seu principal objetivo é a leitura e compreensão de grande quantidade de dados (Big Data)
+
+-   Usado em diversas áreas como Spark, Hadoop, AWS, Azure, Google BigQuery, bancos analíticos e dentre outros
+
+-   Suas Facilidades consistem em
+
+    -   Ter um armanezamento mais compacto, sendo colunar e comprido;
+
+    -   Proporcionar uma leitura rápida de apenas algumas colunas sem a necessidade de carregar todo o dataset.
+
+Pontos para se ter atenção é que por serem arquivos binários, não são diretamente legíveis e serem pouco útil para pequenos datasets.
+
+## Arquivo JSON (JavaScript Objet Notation)
+
+-   Seu formato é em texto, foi criado em 2001 por Douglas Crockfor.
+
+-   Seu objetivo é armazear e transmitir dados de forma estruturada e legível, proporcionando uma leitura e escrita simples.
+
+-   Pelo nome JSON, foi inspitado no JavaScript
+
+-   Usado em áreas como APIs web, configuração de sistemas, intercâmbio de dados entre linguages
+
+-   Sua facilidades consistem em
+
+    -   Proporcionar uma leitura, edição e compreensão mais fácil;
+
+    -   É aceito praticamente em todas as linguagens
+
+Não é tão eficiente em compreesão quanto o parquet e a presença de estruturas aninhadas podem ser complexas para manipular em tabelas.
+
+Instalando a biblioteca Arrow, utilizada para importar arquivos .parquet
+
+```{r}
+
+#| echo: false
+#| message: false
+#| warning: false
+install.packages("arrow", repos = "https://cloud.r-project.org/", type = "binary")
+
+```
+
+A biblioteca arrow para importar arquivos .parquet e a biblioteca jsonlite para importar arquivos .json
+
+```{r}
+
+#| echo: false
+#| message: false
+#| warning: false 
+library(arrow)
+library(jsonlite)
+```
+
+Aqui um exemplo de como criar um data frame direto do R e deixá-lo no formato parquet
+
+```{r}
+
+
+#Criando um data frame simples
+df <- data.frame(
+  id = 1:3,
+  nome = c("Ana", "Bruno", "Carlos"),
+  idade = c(23, 35, 29)
+)
+
+#Salvando em parquet
+write_parquet(df, "exemplo.parquet")
+
+# Lendo o arquivo parquet
+dados_parquet <- read_parquet("exemplo.parquet")
+head(dados_parquet)
+
+
+```
+
+Lendo o arquivo weather.parquet, que está no formato parquet, onde os dados tratam do histórico de medições meteorológicas de várias estações.
+
+```{r}
+
+# Lendo o arquivo parquet
+parquet_weather <- read_parquet("weather.parquet")
+
+head(parquet_weather)
+
+
+```
+
+Lendo o arquivo no formato json chamado de employess.json que trata da coleta de dados relacionados a funcionários de uma empresa
+
+```{r}
+
+# Lendo o arquivo JSON
+dados_jsonN <- fromJSON("employees.json")
+
+head(dados_jsonN)
+
+```
