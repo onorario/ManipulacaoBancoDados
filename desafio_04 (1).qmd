@@ -1,0 +1,277 @@
+---
+title: "desafio_04"
+author: "Luiz Fernando de Oliveira Pereira RA:267356"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+## Quarto
+
+```{r}
+# Ver qual é o diretório atual
+getwd()
+
+# Listar arquivos no diretório atual
+list.files()
+
+```
+
+```{r}
+#Carregando os pacotes
+library(leaflet)
+library(readr)
+library(dplyr)
+library(stringr)
+library(lubridate)
+library(ggplot2)
+library(tidyr)
+library(maps)
+```
+
+```{r}
+
+#Lendo os arquivos
+airlines <- read_csv(("airlines.csv"))
+airports <- read_csv("airports.csv")
+flights <- read_csv("flights.csv")
+
+
+#criando cópias dos datinhas
+df_airlines <- airlines
+df_airports <- airports
+df_flights <- flights
+
+
+```
+
+```{r}
+# Comando mais curto para ver tipos de todas as variáveis
+str(df_flights)
+
+```
+
+```{r}
+
+#código cobrindo todas as demandas da parte 1
+
+
+analisa_aeronave <- function(tail_number, arquivo, airports_df = df_airports, chunk_size = 200000) {
+  # 0) coletor de pedaços (chunks) encontrados
+  env <- new.env()
+  env$parts <- list()
+  
+  # 1) callback que guarda somente as linhas do tail_number
+  cb <- readr::DataFrameCallback$new(function(df, pos) {
+    df_sub <- df %>% filter(TAIL_NUMBER == tail_number)
+    if (nrow(df_sub) > 0) env$parts[[length(env$parts) + 1]] <<- df_sub
+  })
+  
+  # 2) ler em partes (chunked)
+  readr::read_csv_chunked(file = arquivo, callback = cb, chunk_size = chunk_size, progress = TRUE)
+  
+  # 3) checar se encontrou algo
+  if (length(env$parts) == 0) {
+    message(sprintf("Nenhum voo encontrado para %s", tail_number))
+    return(list(
+      tabela = tibble::tibble(),
+      grafico = ggplot() + ggtitle(sprintf("Nenhum voo encontrado para %s", tail_number))
+    ))
+  }
+  
+  # 4) juntar pedaços e normalizar/transformar colunas importantes
+  flights_tail <- dplyr::bind_rows(env$parts)
+  
+  flights_tail <- flights_tail %>%
+    # garantir tipos básicos
+    mutate(
+      YEAR  = as.integer(YEAR),
+      MONTH = as.integer(MONTH),
+      DAY   = as.integer(DAY)
+    ) %>%
+    # criar coluna DATE (data)
+    mutate(DATE = make_date(YEAR, MONTH, DAY)) %>%
+    # PAD para SCHEDULED_DEPARTURE (ex.: "5" -> "0005", "520" -> "0520", "0005" -> "0005")
+    mutate(
+      SCHEDULED_DEPARTURE = if_else(is.na(SCHEDULED_DEPARTURE) | SCHEDULED_DEPARTURE == "", NA_character_, as.character(SCHEDULED_DEPARTURE)),
+      DEP_HOUR_PAD = if_else(is.na(SCHEDULED_DEPARTURE), NA_character_, str_pad(SCHEDULED_DEPARTURE, width = 4, side = "left", pad = "0")),
+      # criar POSIXct de decolagem baseado em SCHEDULED_DEPARTURE (YYYY-MM-DD HH:MM)
+      DEP_DATETIME = case_when(
+        is.na(DEP_HOUR_PAD) ~ as.POSIXct(NA),
+        TRUE ~ ymd_hm(paste(DATE, paste0(substr(DEP_HOUR_PAD, 1, 2), ":", substr(DEP_HOUR_PAD, 3, 4))))
+      )
+    ) %>%
+    arrange(DEP_DATETIME)
+  
+  # 5) juntar coordenadas dos aeroportos (origem e destino) usando airports_df
+  airports_sel <- airports_df %>% select(IATA_CODE, LATITUDE, LONGITUDE)
+  flights_tail <- flights_tail %>%
+    left_join(airports_sel %>% rename(ORIGIN_LAT = LATITUDE, ORIGIN_LON = LONGITUDE),
+              by = c("ORIGIN_AIRPORT" = "IATA_CODE")) %>%
+    left_join(airports_sel %>% rename(DEST_LAT = LATITUDE, DEST_LON = LONGITUDE),
+              by = c("DESTINATION_AIRPORT" = "IATA_CODE"))
+  
+  # 6) estatística: velocidade média (DISTANCE em milhas / AIR_TIME em minutos -> mph)
+  flights_tail <- flights_tail %>%
+    mutate(
+      AIR_TIME_num = as.numeric(AIR_TIME),
+      DISTANCE_num = as.numeric(DISTANCE),
+      VELOCIDADE_MEDIA = ifelse(!is.na(AIR_TIME_num) & AIR_TIME_num > 0,
+                                DISTANCE_num / (AIR_TIME_num / 60),
+                                NA_real_)
+    ) %>%
+    select(-AIR_TIME_num, -DISTANCE_num)
+  
+  # 7) construir pontos sequenciais para traçar o caminho "linear no tempo"
+  flights_ordered <- flights_tail %>% arrange(DEP_DATETIME)
+  if (nrow(flights_ordered) == 0) {
+    message("Encontrado voos, mas sem datas válidas para ordenar.")
+    return(list(tabela = flights_tail, grafico = ggplot() + ggtitle(sprintf("Sem horários válidos para %s", tail_number))))
+  }
+  
+  origin_pts <- flights_ordered %>%
+    mutate(idx = row_number()) %>%
+    transmute(idx, seq = 2*idx - 1, time = DEP_DATETIME, lon = ORIGIN_LON, lat = ORIGIN_LAT, airport = ORIGIN_AIRPORT)
+  
+  dest_pts <- flights_ordered %>%
+    mutate(idx = row_number()) %>%
+    transmute(
+      idx, seq = 2*idx,
+      # tentativa de inferir tempo de chegada: DEP_DATETIME + AIR_TIME (se disponível)
+      time = case_when(
+        !is.na(DEP_DATETIME) & !is.na(AIR_TIME) ~ DEP_DATETIME + minutes(as.numeric(AIR_TIME)),
+        TRUE ~ as.POSIXct(NA)
+      ),
+      lon = DEST_LON, lat = DEST_LAT, airport = DESTINATION_AIRPORT
+    )
+  
+  path_points <- bind_rows(origin_pts, dest_pts) %>%
+    arrange(seq) %>%
+    filter(!is.na(lon) & !is.na(lat))   # remover pontos sem coordenada
+  
+  # 8) mapa: path (linha conectando todos os pontos sequenciais) + segmentos por perna com espessura ~ velocidade
+  leg_segs <- flights_ordered %>% filter(!is.na(ORIGIN_LON) & !is.na(DEST_LON))
+  
+  grafico <- ggplot() +
+  borders("usa", colour = "gray80", fill = "gray95") +   # <- só EUA
+  geom_path(data = path_points, aes(x = lon, y = lat),
+            size = 0.6, color = "darkblue", lineend = "round") +
+  geom_segment(data = leg_segs,
+               aes(x = ORIGIN_LON, y = ORIGIN_LAT,
+                   xend = DEST_LON, yend = DEST_LAT,
+                   size = VELOCIDADE_MEDIA, color = VELOCIDADE_MEDIA),
+               alpha = 0.75) +
+  scale_size_continuous(range = c(0.3, 3)) +
+  scale_color_gradient(low = "steelblue", high = "darkred", na.value = "grey60") +
+  coord_quickmap(xlim = c(-125, -65), ylim = c(10, 50)) +   # <- recorte EUA continental
+  theme_minimal() +
+  labs(title = paste0("Trajetória anual — ", tail_number),
+       subtitle = paste0("Voos encontrados: ", nrow(flights_ordered)),
+       size = "Velocidade (mi/h)",
+       color = "Velocidade (mi/h)")
+
+  
+  # 9) retornar lista nomeada (tabela tidy + gráfico ggplot)
+  return(list(tabela = flights_tail, grafico = grafico))
+}
+
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| results: 'hide'
+
+# Executa a função (silenciosa), isto é, para evitar que apareça mensagens "extras" no PDF referente ao carregamente do código
+resultado <- suppressMessages(
+  suppressWarnings(
+    analisa_aeronave("N431WN", file.path("dados", "flights.csv.zip"))
+  )
+)
+
+# Exibe o gráfico
+resultado$grafico
+```
+
+## Mapa Interativo
+
+Aqui foi realizado um mapa interativo referente N7ALAA, que ao todo contém 51 voos.
+
+Observação: Não consegui realizar com mais, pois a partir de 100 voos meu computador crashava
+
+```{r}
+
+
+analisa_aeronave_leaflet <- function(tail_number, arquivo) {
+  
+  # --------------------------------------------------------
+  # 1. Lendo apenas os voos da aeronave de interesse
+  # --------------------------------------------------------
+  flights <- read_csv(arquivo, show_col_types = FALSE) %>%
+    filter(TAIL_NUMBER == tail_number) %>%
+    arrange(YEAR, MONTH, DAY, as.numeric(SCHEDULED_DEPARTURE))
+  
+  # --------------------------------------------------------
+  # 2. Adicionar coordenadas dos aeroportos, utilizando comandos com "join" para juntar os banco de dados
+  # --------------------------------------------------------
+  flights <- flights %>%
+    left_join(df_airports, by = c("ORIGIN_AIRPORT" = "IATA_CODE")) %>%
+    rename(ORIGIN_LAT = LATITUDE, ORIGIN_LON = LONGITUDE) %>%
+    left_join(df_airports, by = c("DESTINATION_AIRPORT" = "IATA_CODE")) %>%
+    rename(DEST_LAT = LATITUDE, DEST_LON = LONGITUDE)
+  
+  # --------------------------------------------------------
+  # 3. Criar tabela de "pernas" do voo (trajetos)
+  # --------------------------------------------------------
+  legs <- flights %>%
+    transmute(ORIGIN_LAT, ORIGIN_LON, DEST_LAT, DEST_LON,
+              ROTA = paste(ORIGIN_AIRPORT, "→", DESTINATION_AIRPORT),
+              VELOCIDADE = DISTANCE / (AIR_TIME/60))
+  
+  # --------------------------------------------------------
+  # 4. Construindo o mapa interativo utilizando a biblioteca leaflet
+  # --------------------------------------------------------
+  mapa <- leaflet() %>%
+    addProviderTiles(providers$CartoDB.Positron) %>%  # fundo limpo
+    addPolylines(data = legs,
+                 lng = ~c(ORIGIN_LON, DEST_LON),
+                 lat = ~c(ORIGIN_LAT, DEST_LAT),
+                 color = ~ifelse(VELOCIDADE > 500, "red", "blue"),
+                 weight = ~pmax(1, VELOCIDADE/200),
+                 opacity = 0.8,
+                 popup = ~paste0("<b>Rota: </b>", ROTA,
+                                 "<br><b>Velocidade média: </b>",
+                                 round(VELOCIDADE, 1), " mi/h")) %>%
+    addCircleMarkers(lng = c(legs$ORIGIN_LON, legs$DEST_LON),
+                     lat = c(legs$ORIGIN_LAT, legs$DEST_LAT),
+                     radius = 3, color = "black",
+                     fill = TRUE, fillOpacity = 0.6,
+                     popup = c(legs$ROTA, legs$ROTA))  # mostra origem/destino
+  
+  return(mapa)
+}
+
+# --------------------------------------------------------
+# Exemplo de uso em N7ALAA
+# --------------------------------------------------------
+mapa_N7ALAA <- analisa_aeronave_leaflet("N7ALAA", file.path("dados", "flights.csv.zip"))
+
+# Exibir o mapa
+mapa_N7ALAA
+
+```
+
+```{r}
+
+# Contar número de voos por aeronave e filtrar os que têm pelo menos 50
+voos_por_aviao <- df_flights %>%
+  count(TAIL_NUMBER) %>%
+  filter(n >= 50) %>%       # mantém só aeronaves com >= 50 voos
+  arrange(n)                # ordena do menor para o maior
+
+# Mostrar as 10 aeronaves com menos voos (mas todas com >= 50)
+head(voos_por_aviao, 10)
+
+```
