@@ -1,0 +1,546 @@
+---
+title: "Desafio_08"
+author: "Luiz Fernando de Oliveira Pereira RA:267356"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+## Quarto
+
+1.Baixe o arquivo `uwmadison.sqlite3`. Conecte-se a ele usando o pacote `RSQLite`, armazenando a conexão em uma variável `conn`.
+
+```{r}
+library(RSQLite)
+
+conn <- dbConnect(SQLite(), "database.sqlite3")
+```
+
+```{r}
+#Vendo todas as tabelas de conn
+dbListTables(conn)
+
+```
+
+```{r}
+
+# vendo todas as colunas de cada tabela
+dbListFields(conn, "teachings")
+dbListFields(conn, "sections")
+dbListFields(conn, "instructors")
+dbListFields(conn, "course_offerings")
+dbListFields(conn, "courses")
+dbListFields(conn, "subjects")
+dbListFields(conn, "grade_distributions")
+dbListFields(conn, "rooms")
+dbListFields(conn,"schedules")
+dbListFields(conn,"subject_memberships")
+
+```
+
+2.  Quem são e quantos são os professores que lecionaram disciplinas cujo tópico era estatística (`subjects.abbreviation='STAT'`);
+
+```{r}
+#Mostrando os nomes dos professores que lecionam estatística
+dbGetQuery(conn, "
+SELECT 
+    i.name AS professor,                     -- Nome do professor
+    COUNT(DISTINCT t.section_uuid) AS num_sections  -- Conta o número de seções distintas ministradas por ele
+
+-- Tabela principal: professores
+FROM instructors i
+
+-- Liga professores às aulas (teachings)
+JOIN teachings t 
+  ON i.id = t.instructor_id
+
+-- Liga cada teaching à seção correspondente
+JOIN sections s 
+  ON t.section_uuid = s.uuid
+
+-- Liga as seções às áreas de conhecimento (subjects)
+JOIN subject_memberships sm 
+  ON s.course_offering_uuid = sm.course_offering_uuid
+
+-- Liga ao subject (exemplo: STAT)
+JOIN subjects sub 
+  ON sm.subject_code = sub.code
+
+-- Considera apenas disciplinas de estatística
+WHERE sub.abbreviation = 'STAT'
+
+-- Agrupa por professor (cada linha = 1 professor)
+GROUP BY i.name
+
+-- Ordena pelo número de seções (do que lecionou mais para menos)
+ORDER BY num_sections DESC;
+")
+
+
+
+```
+
+```{r}
+# Contando quantos professores lecionam estatística
+dbGetQuery(conn, "
+SELECT 
+    COUNT(DISTINCT i.id) AS num_professores  -- Conta a quantidade de professores distintos (únicos)
+
+-- Tabela principal: professores
+FROM instructors i
+
+-- Liga professores às aulas que ministram
+JOIN teachings t 
+  ON i.id = t.instructor_id
+
+-- Liga cada teaching à seção correspondente
+JOIN sections s 
+  ON t.section_uuid = s.uuid
+
+-- Liga as seções às áreas de conhecimento (subjects)
+JOIN subject_memberships sm 
+  ON s.course_offering_uuid = sm.course_offering_uuid
+
+-- Liga ao subject (exemplo: STAT)
+JOIN subjects sub 
+  ON sm.subject_code = sub.code
+
+-- Filtra apenas disciplinas de estatística
+WHERE sub.abbreviation = 'STAT';
+")
+
+
+
+```
+
+3.  O GPA americano é definido numa escala de 0 a 4, em que A = 4, AB = 3.5, B = 3, BC = 2.5, C = 2, D = 1 e F = 0. Determinando a nota média de cada oferecimento pela ponderação da quantidade de alunos em cada extrato com os valores numéricos de cada conceito, indique (no que se referente a disciplinas no assunto de estatística):
+
+```{r}
+dbGetQuery(conn, "
+SELECT 
+    i.name AS professor,   -- Nome do professor
+
+    -- Notas detalhadas (quantidade de alunos em cada conceito)
+    a_count,   -- Quantidade de notas A
+    ab_count,  -- Quantidade de notas AB
+    b_count,   -- Quantidade de notas B
+    bc_count,  -- Quantidade de notas BC
+    c_count,   -- Quantidade de notas C
+    d_count,   -- Quantidade de notas D
+    f_count    -- Quantidade de notas F
+
+-- A partir das distribuições de notas
+FROM grade_distributions gd
+
+-- Liga às seções
+JOIN sections s 
+  ON gd.course_offering_uuid = s.course_offering_uuid
+
+-- Liga seções aos teachings
+JOIN teachings t 
+  ON s.uuid = t.section_uuid
+
+-- Liga teachings aos professores
+JOIN instructors i 
+  ON t.instructor_id = i.id
+
+-- Liga seção ao oferecimento do curso
+JOIN course_offerings co 
+  ON s.course_offering_uuid = co.uuid
+
+-- Liga oferecimento ao curso
+JOIN courses c 
+  ON co.course_uuid = c.uuid
+
+-- Filtra apenas disciplinas de estatística
+JOIN subjects sub 
+  ON sub.abbreviation = 'STAT'
+ AND sub.code = c.number
+
+-- Filtra apenas o professor escolhido (Weiping Tang)
+WHERE i.name = 'WEIPING TANG';
+")
+
+
+```
+
+```{r}
+
+
+# Consultar todas as colunas de notas para Estatística
+dbGetQuery(conn, "
+SELECT 
+    i.name AS professor,                -- Nome do professor
+
+    -- Somatórios de cada conceito (usa COALESCE para tratar NULL como 0)
+    SUM(COALESCE(a_count,0))  AS a_total,   -- Total de notas A
+    SUM(COALESCE(ab_count,0)) AS ab_total,  -- Total de notas AB
+    SUM(COALESCE(b_count,0))  AS b_total,   -- Total de notas B
+    SUM(COALESCE(bc_count,0)) AS bc_total,  -- Total de notas BC
+    SUM(COALESCE(c_count,0))  AS c_total,   -- Total de notas C
+    SUM(COALESCE(d_count,0))  AS d_total,   -- Total de notas D
+    SUM(COALESCE(f_count,0))  AS f_total    -- Total de notas F
+
+-- A partir das distribuições de notas
+FROM grade_distributions gd
+
+-- Liga às seções
+JOIN sections s 
+  ON gd.course_offering_uuid = s.course_offering_uuid
+
+-- Liga as seções aos professores (teachings)
+JOIN teachings t 
+  ON s.uuid = t.section_uuid
+
+-- Liga cada teaching ao professor
+JOIN instructors i 
+  ON t.instructor_id = i.id
+
+-- Liga seção ao oferecimento de curso
+JOIN course_offerings co 
+  ON s.course_offering_uuid = co.uuid
+
+-- Liga oferecimento ao curso
+JOIN courses c 
+  ON co.course_uuid = c.uuid
+
+-- Filtra apenas as disciplinas de estatística
+JOIN subjects sub 
+  ON sub.abbreviation = 'STAT'
+ AND sub.code = c.number
+
+-- Agrupa por professor (cada professor terá seus totais somados)
+GROUP BY i.name
+
+-- Ordena alfabeticamente por professor
+ORDER BY professor;
+")
+
+```
+
+-   Quem é o professor mais difícil?
+
+    ```{r}
+    dbGetQuery(conn, "
+    SELECT 
+        i.name AS Professor,  -- Seleciona o nome do professor
+
+        -- Calcula o GPA médio ponderado de cada professor
+        SUM(
+            a_count*4 +         -- A vale 4 pontos
+            ab_count*3.5 +      -- AB vale 3.5 pontos
+            b_count*3 +         -- B vale 3 pontos
+            bc_count*2.5 +      -- BC vale 2.5 pontos
+            c_count*2 +         -- C vale 2 pontos
+            d_count*1 +         -- D vale 1 ponto
+            f_count*0           -- F vale 0 pontos
+        ) * 1.0 
+        / SUM(
+            a_count + ab_count + b_count + bc_count + c_count + d_count + f_count
+        ) AS gpa_medio  -- Divide pela quantidade total de alunos para obter a média
+
+    -- Tabela principal: professores
+    FROM instructors i
+
+    -- Liga professores às aulas que ministram
+    JOIN teachings t ON i.id = t.instructor_id
+
+    -- Liga cada teaching à seção correspondente
+    JOIN sections s ON t.section_uuid = s.uuid
+
+    -- Liga as seções às áreas de conhecimento (subjects)
+    JOIN subject_memberships sm ON s.course_offering_uuid = sm.course_offering_uuid
+
+    -- Liga ao subject (exemplo: STAT)
+    JOIN subjects sub ON sm.subject_code = sub.code
+
+    -- Liga às distribuições de notas
+    JOIN grade_distributions gd 
+      ON gd.course_offering_uuid = s.course_offering_uuid 
+     AND gd.section_number = s.number
+
+    -- Considera apenas disciplinas de estatística
+    WHERE sub.abbreviation = 'STAT'
+      -- Garante que houve alunos (evita divisão por zero)
+      AND (a_count + ab_count + b_count + bc_count + c_count + d_count + f_count) > 0
+
+    -- Agrupa os cálculos por professor
+    GROUP BY i.name
+
+    -- Ordena do menor para o maior GPA médio (professor mais difícil primeiro)
+    ORDER BY gpa_medio ASC
+
+    -- Retorna apenas o primeiro professor (o mais difícil)
+    LIMIT 1;
+    ")
+
+
+
+
+
+
+    ```
+
+    \
+
+-   Quem é o professor mais fácil?
+
+    ```{r}
+    dbGetQuery(conn, "
+    SELECT 
+        i.name AS professor,  -- Seleciona o nome do professor
+
+        -- Calcula o GPA médio ponderado de cada professor
+        SUM(
+            a_count*4 +         -- A vale 4 pontos
+            ab_count*3.5 +      -- AB vale 3.5 pontos
+            b_count*3 +         -- B vale 3 pontos
+            bc_count*2.5 +      -- BC vale 2.5 pontos
+            c_count*2 +         -- C vale 2 pontos
+            d_count*1 +         -- D vale 1 ponto
+            f_count*0           -- F vale 0 pontos
+        ) * 1.0 
+        / SUM(
+            a_count + ab_count + b_count + bc_count + c_count + d_count + f_count
+        ) AS gpa_medio  -- Divide pela quantidade total de alunos para obter a média
+
+    -- Tabela principal: professores
+    FROM instructors i
+
+    -- Liga professores às aulas que ministram
+    JOIN teachings t ON i.id = t.instructor_id
+
+    -- Liga cada teaching à seção correspondente
+    JOIN sections s ON t.section_uuid = s.uuid
+
+    -- Liga as seções às áreas de conhecimento (subjects)
+    JOIN subject_memberships sm ON s.course_offering_uuid = sm.course_offering_uuid
+
+    -- Liga ao subject (exemplo: STAT)
+    JOIN subjects sub ON sm.subject_code = sub.code
+
+    -- Liga às distribuições de notas
+    JOIN grade_distributions gd 
+      ON gd.course_offering_uuid = s.course_offering_uuid 
+     AND gd.section_number = s.number
+
+    -- Considera apenas disciplinas de estatística
+    WHERE sub.abbreviation = 'STAT'
+      -- Evita divisão por zero, garantindo que houve alunos avaliados
+      AND (a_count + ab_count + b_count + bc_count + c_count + d_count + f_count) > 0
+
+    -- Agrupa os cálculos por professor
+    GROUP BY i.name
+
+    -- Ordena do maior para o menor GPA médio (professor mais fácil primeiro)
+    ORDER BY gpa_medio DESC
+
+    -- Traz apenas o primeiro resultado (o professor mais fácil)
+    LIMIT 1;
+    ")
+
+
+    ```
+
+    ```{r}
+    # Entretanto, temos 3 professores com gpa_medio = 4, no código abaixo mostro os 3 professores
+
+    dbGetQuery(conn, "
+    -- Cria uma CTE (subconsulta temporária) chamada gpa_por_professor
+    WITH gpa_por_professor AS (
+        SELECT 
+            i.name AS professor,  -- Nome do professor
+
+            -- Cálculo do GPA médio ponderado por professor
+            SUM(
+                a_count*4 +         -- A vale 4 pontos
+                ab_count*3.5 +      -- AB vale 3.5 pontos
+                b_count*3 +         -- B vale 3 pontos
+                bc_count*2.5 +      -- BC vale 2.5 pontos
+                c_count*2 +         -- C vale 2 pontos
+                d_count*1 +         -- D vale 1 ponto
+                f_count*0           -- F vale 0 pontos
+            ) * 1.0 
+            / SUM(
+                a_count + ab_count + b_count + bc_count + c_count + d_count + f_count
+            ) AS gpa_medio
+
+        -- Tabela principal: professores
+        FROM instructors i
+
+        -- Liga professores às aulas que ministram
+        JOIN teachings t ON i.id = t.instructor_id
+
+        -- Liga cada ensino (teaching) à seção correspondente
+        JOIN sections s ON t.section_uuid = s.uuid
+
+        -- Liga as seções aos subjects (áreas de conhecimento)
+        JOIN subject_memberships sm ON s.course_offering_uuid = sm.course_offering_uuid
+
+        -- Liga ao subject (ex: STAT)
+        JOIN subjects sub ON sm.subject_code = sub.code
+
+        -- Liga às distribuições de notas
+        JOIN grade_distributions gd 
+          ON gd.course_offering_uuid = s.course_offering_uuid 
+         AND gd.section_number = s.number
+
+        -- Considera apenas disciplinas de estatística
+        WHERE sub.abbreviation = 'STAT'
+          -- Remove casos sem alunos (evita divisão por zero)
+          AND (a_count + ab_count + b_count + bc_count + c_count + d_count + f_count) > 0
+
+        -- Agrupa os cálculos por professor
+        GROUP BY i.name
+    )
+
+    -- Seleciona da CTE apenas os professores cujo GPA médio = 4 (nota máxima possível)
+    SELECT *
+    FROM gpa_por_professor
+    WHERE gpa_medio = 4
+
+    -- Ordena alfabeticamente os professores que tiveram GPA máximo
+    ORDER BY professor;
+    ")
+
+
+    ```
+
+-   Qual é a disciplina mais difícil?
+
+    ```{r}
+    dbGetQuery(conn, "
+    -- Seleciona o nome da disciplina e calcula o GPA médio
+    SELECT 
+        c.name AS disciplina,
+
+        -- Cálculo do GPA médio ponderado
+        -- Numerador: soma ponderada das notas (cada conceito multiplicado pelo peso do GPA)
+        -- Denominador: soma do número total de alunos (NULLIF evita divisão por zero)
+        SUM(
+            gd.a_count*4 +            -- A vale 4 pontos
+            gd.ab_count*3.5 +         -- AB vale 3.5 pontos
+            gd.b_count*3 +            -- B vale 3 pontos
+            gd.bc_count*2.5 +         -- BC vale 2.5 pontos
+            gd.c_count*2 +            -- C vale 2 pontos
+            gd.d_count*1 +            -- D vale 1 ponto
+            gd.f_count*0              -- F vale 0 pontos
+        ) * 1.0 
+        / NULLIF(
+            SUM(
+                gd.a_count + gd.ab_count + gd.b_count + gd.bc_count + gd.c_count + gd.d_count + gd.f_count
+            ), 0
+        ) AS gpa_medio
+
+    -- Tabela principal: cursos
+    FROM courses c
+
+    -- Conecta cursos às suas ofertas
+    JOIN course_offerings co ON c.uuid = co.course_uuid
+
+    -- Conecta cada oferta às seções
+    JOIN sections s ON s.course_offering_uuid = co.uuid
+
+    -- Conecta as ofertas às áreas de conhecimento (subjects)
+    JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid
+
+    -- Pega apenas subjects da área de estatística (STAT)
+    JOIN subjects sub ON sm.subject_code = sub.code
+
+    -- Conecta às distribuições de notas (grade distributions), ligando oferta e número da seção
+    JOIN grade_distributions gd 
+      ON gd.course_offering_uuid = s.course_offering_uuid 
+     AND gd.section_number = s.number
+
+    -- Filtra apenas disciplinas de estatística
+    WHERE sub.abbreviation = 'STAT'
+
+    -- Agrupa os cálculos por disciplina (cada curso tem seu GPA médio agregado)
+    GROUP BY c.name
+
+    -- Remove disciplinas que resultariam em NA (sem alunos)
+    HAVING gpa_medio IS NOT NULL
+
+    -- Ordena em ordem crescente: menor GPA (mais difícil) → maior GPA (mais fácil)
+    ORDER BY gpa_medio ASC;
+    ")
+
+
+
+    ```
+
+-   Qual é a disciplina mais fácil?
+
+    ```{r}
+    dbGetQuery(conn, "
+    -- Seleciona o nome da disciplina e calcula o GPA médio
+    SELECT 
+        c.name AS disciplina,
+
+        -- Cálculo do GPA médio ponderado
+        -- Numerador: soma ponderada das notas (cada conceito multiplicado pelo peso do GPA)
+        -- Denominador: soma do número total de alunos (NULLIF evita divisão por zero)
+        SUM(
+            gd.a_count*4 +            -- A vale 4 pontos
+            gd.ab_count*3.5 +         -- AB vale 3.5 pontos
+            gd.b_count*3 +            -- B vale 3 pontos
+            gd.bc_count*2.5 +         -- BC vale 2.5 pontos
+            gd.c_count*2 +            -- C vale 2 pontos
+            gd.d_count*1 +            -- D vale 1 ponto
+            gd.f_count*0              -- F vale 0 pontos
+        ) * 1.0 
+        / NULLIF(
+            SUM(
+                gd.a_count + gd.ab_count + gd.b_count + gd.bc_count + gd.c_count + gd.d_count + gd.f_count
+            ), 0
+        ) AS gpa_medio
+
+    -- Tabela principal: cursos
+    FROM courses c
+
+    -- Conecta cursos às suas ofertas
+    JOIN course_offerings co ON c.uuid = co.course_uuid
+
+    -- Conecta cada oferta às seções
+    JOIN sections s ON s.course_offering_uuid = co.uuid
+
+    -- Conecta as ofertas às áreas de conhecimento (subjects)
+    JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid
+
+    -- Pega apenas subjects da área de estatística (STAT)
+    JOIN subjects sub ON sm.subject_code = sub.code
+
+    -- Conecta às distribuições de notas (grade distributions), ligando oferta e número da seção
+    JOIN grade_distributions gd 
+      ON gd.course_offering_uuid = s.course_offering_uuid 
+     AND gd.section_number = s.number
+
+    -- Filtra apenas disciplinas de estatística
+    WHERE sub.abbreviation = 'STAT'
+
+    -- Agrupa os cálculos por disciplina (cada curso tem seu GPA médio agregado)
+    GROUP BY c.name
+
+    -- Remove disciplinas que resultariam em NA (sem alunos)
+    HAVING gpa_medio IS NOT NULL
+
+    -- Ordena do maior GPA (mais fácil) para o menor GPA (mais difícil)
+    ORDER BY gpa_medio DESC;
+    ")
+
+
+    ```
+
+4.  Desconecte do banco de dados.
+
+```{r}
+dbDisconnect(conn)
+
+```
+
+```{r}
+#Horário e dia em que o Html foi gerado
+format(Sys.time(), "%d/%m/%Y %H:%M:%S")
+
+```
