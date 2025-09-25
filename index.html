@@ -5,41 +5,336 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meus Desafios</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+    
     body {
-      font-family: Arial, sans-serif;
-      background: #f9f9f9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0c0c1e 0%, #1a1a2e 50%, #16213e 100%);
+      min-height: 100vh;
       padding: 20px;
+      overflow-x: hidden;
     }
+
+    /* Animação de fundo com partículas */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        radial-gradient(2px 2px at 20px 30px, #00ffff, transparent),
+        radial-gradient(2px 2px at 40px 70px, #ff00ff, transparent),
+        radial-gradient(1px 1px at 90px 40px, #ffffff, transparent),
+        radial-gradient(1px 1px at 130px 80px, #00ff88, transparent),
+        radial-gradient(2px 2px at 160px 30px, #ffff00, transparent);
+      background-repeat: repeat;
+      background-size: 200px 100px;
+      animation: sparkle 20s linear infinite;
+      pointer-events: none;
+      opacity: 0.1;
+      z-index: -1;
+    }
+
+    @keyframes sparkle {
+      0% { transform: translateY(0px) }
+      100% { transform: translateY(-200px) }
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
     h1 {
-      color: #333;
+      font-family: 'Orbitron', monospace;
+      color: #00ffff;
+      text-align: center;
+      font-size: 3rem;
+      font-weight: 900;
+      margin-bottom: 2rem;
+      text-shadow: 
+        0 0 10px #00ffff,
+        0 0 20px #00ffff,
+        0 0 40px #00ffff;
+      animation: glow 2s ease-in-out infinite alternate;
+      letter-spacing: 3px;
+      transition: all 0.3s ease;
     }
-    ul {
+
+    h1:hover {
+      transform: scale(1.08);
+      letter-spacing: 4px;
+    }
+
+    @keyframes glow {
+      from { text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 40px #00ffff; }
+      to { text-shadow: 0 0 20px #00ffff, 0 0 30px #00ffff, 0 0 60px #00ffff; }
+    }
+
+    .challenges-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
       list-style: none;
       padding: 0;
     }
-    li {
-      margin: 10px 0;
+
+    .challenge-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      border-radius: 15px;
+      padding: 25px;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+      overflow: hidden;
+      transform-style: preserve-3d;
     }
-    a {
-      text-decoration: none;
-      color: #007acc;
+
+    .challenge-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(
+        45deg,
+        transparent,
+        rgba(0, 255, 255, 0.1),
+        transparent
+      );
+      transform: rotate(45deg);
+      transition: all 0.6s;
+      opacity: 0;
+    }
+
+    .challenge-card:hover::before {
+      animation: shine 0.8s ease-in-out;
+    }
+
+    @keyframes shine {
+      0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); opacity: 0; }
+      50% { opacity: 1; }
+      100% { transform: translateX(100%) translateY(100%) rotate(45deg); opacity: 0; }
+    }
+
+    .challenge-card:hover {
+      transform: translateY(-10px) scale(1.05);
+      border-color: #00ffff;
+      box-shadow: 
+        0 20px 40px rgba(0, 255, 255, 0.2),
+        0 0 0 1px rgba(0, 255, 255, 0.1),
+        inset 0 0 20px rgba(0, 255, 255, 0.1);
+    }
+
+    .challenge-card:nth-child(odd) {
+      border-color: rgba(255, 0, 255, 0.2);
+    }
+
+    .challenge-card:nth-child(odd):hover {
+      border-color: #ff00ff;
+      box-shadow: 
+        0 20px 40px rgba(255, 0, 255, 0.2),
+        0 0 0 1px rgba(255, 0, 255, 0.1),
+        inset 0 0 20px rgba(255, 0, 255, 0.1);
+    }
+
+    .challenge-number {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #00ffff, #0080ff);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-weight: bold;
+      color: #000;
+      font-size: 1.2rem;
+      box-shadow: 0 4px 15px rgba(0, 255, 255, 0.3);
     }
-    a:hover {
-      color: #005f8c;
+
+    .challenge-card:nth-child(odd) .challenge-number {
+      background: linear-gradient(135deg, #ff00ff, #ff0080);
+      box-shadow: 0 4px 15px rgba(255, 0, 255, 0.3);
+    }
+
+    .challenge-title {
+      color: #ffffff;
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      transition: all 0.3s ease;
+    }
+
+    .challenge-card:hover .challenge-title {
+      color: #00ffff;
+      text-shadow: 0 0 10px currentColor;
+    }
+
+    .challenge-card:nth-child(odd):hover .challenge-title {
+      color: #ff00ff;
+    }
+
+    .challenge-link {
+      display: inline-block;
+      color: #a0a0ff;
+      text-decoration: none;
+      font-size: 0.9rem;
+      padding: 8px 16px;
+      border: 1px solid rgba(160, 160, 255, 0.3);
+      border-radius: 20px;
+      transition: all 0.3s ease;
+      background: rgba(160, 160, 255, 0.1);
+      margin-top: 10px;
+    }
+
+    .challenge-link:hover {
+      background: rgba(160, 160, 255, 0.2);
+      border-color: #a0a0ff;
+      color: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(160, 160, 255, 0.3);
+    }
+
+    .challenge-description {
+      color: #cccccc;
+      font-size: 0.85rem;
+      margin-top: 8px;
+      opacity: 0.8;
+    }
+
+    /* Efeito de hover com rotação 3D */
+    .challenge-card {
+      perspective: 1000px;
+    }
+
+    .challenge-card:hover {
+      transform: translateY(-10px) rotateX(5deg) rotateY(5deg) scale(1.12);
+    }
+
+    /* Responsividade */
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 2rem;
+      }
+      
+      .challenges-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+      
+      .challenge-card {
+        padding: 20px;
+      }
+    }
+
+    /* Efeito de loading */
+    .challenge-card {
+      animation: fadeInUp 0.6s ease forwards;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    .challenge-card:nth-child(1) { animation-delay: 0.1s; }
+    .challenge-card:nth-child(2) { animation-delay: 0.2s; }
+    .challenge-card:nth-child(3) { animation-delay: 0.3s; }
+    .challenge-card:nth-child(4) { animation-delay: 0.4s; }
+    .challenge-card:nth-child(5) { animation-delay: 0.5s; }
+    .challenge-card:nth-child(6) { animation-delay: 0.6s; }
+    .challenge-card:nth-child(7) { animation-delay: 0.7s; }
+    .challenge-card:nth-child(8) { animation-delay: 0.8s; }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Cursor personalizado */
+    body {
+      cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="%2300ffff" opacity="0.3"/><circle cx="10" cy="10" r="3" fill="%2300ffff"/></svg>'), auto;
+    }
+
+    .challenge-card:hover {
+      cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="%23ff00ff" opacity="0.3"/><circle cx="12" cy="12" r="4" fill="%23ff00ff"/></svg>'), auto;
     }
   </style>
 </head>
 <body>
-  <h1>Lista de Desafios</h1>
-  <ul>
-    <li><a href="Desafio_01.html" target="_blank">Desafio 01</a></li>
-    <li><a href="Desafio_05.html" target="_blank">Desafio 05</a></li>
-    <li><a href="desafio_02_python (1).html" target="_blank">Desafio 02 (Python - versão 1)</a></li>
-    <li><a href="desafio_06.html" target="_blank">Desafio 06</a></li>
-    <li><a href="desafio_07.html" target="_blank">Desafio 07</a></li>
-    <li><a href="desafio_08.html" target="_blank">Desafio 08</a></li>
-  </ul>
+  <div class="container">
+    <h1>Lista de Desafios</h1>
+    <ul class="challenges-grid">
+      <li class="challenge-card">
+        <div class="challenge-number">1</div>
+        <div class="challenge-title">Desafio 01</div>
+        <div class="challenge-description">Primeiro desafio da série</div>
+        <a href="Desafio_01.html" target="_blank" class="challenge-link">Abrir Desafio</a>
+      </li>
+      
+      <li class="challenge-card">
+        <div class="challenge-number">2</div>
+        <div class="challenge-title">Desafio 02 (Python)</div>
+        <div class="challenge-description">Desafio focado em Python - Versão 1</div>
+        <a href="desafio_02_python (1).html" target="_blank" class="challenge-link">Abrir Desafio</a>
+      </li>
+      
+      <li class="challenge-card">
+        <div class="challenge-number">3</div>
+        <div class="challenge-title">Desafio 03 (PDF)</div>
+        <div class="challenge-description">Terceiro desafio em formato PDF</div>
+        <a href="desafio_03.pdf" target="_blank" class="challenge-link">Abrir Desafio</a>
+      </li>
+      
+      <li class="challenge-card">
+        <div class="challenge-number">4</div>
+        <div class="challenge-title">Desafio 04</div>
+        <div class="challenge-description">Quarto desafio da sequência</div>
+        <a href="desafio_04.html" target="_blank" class="challenge-link">Abrir Desafio</a>
+      </li>
+      
+      <li class="challenge-card">
+        <div class="challenge-number">5</div>
+        <div class="challenge-title">Desafio 05</div>
+        <div class="challenge-description">Quinto desafio da sequência</div>
+        <a href="Desafio_05.html" target="_blank" class="challenge-link">Abrir Desafio</a>
+      </li>
+      
+      <li class="challenge-card">
+        <div class="challenge-number">6</div>
+        <div class="challenge-title">Desafio 06</div>
+        <div class="challenge-description">Sexto desafio com novos conceitos</div>
+        <a href="desafio_06.html" target="_blank" class="challenge-link">Abrir Desafio</a>
+      </li>
+      
+      <li class="challenge-card">
+        <div class="challenge-number">7</div>
+        <div class="challenge-title">Desafio 07</div>
+        <div class="challenge-description">Sétimo desafio da jornada</div>
+        <a href="desafio_07.html" target="_blank" class="challenge-link">Abrir Desafio</a>
+      </li>
+      
+      <li class="challenge-card">
+        <div class="challenge-number">8</div>
+        <div class="challenge-title">Desafio 08</div>
+        <div class="challenge-description">Oitavo desafio com complexidade avançada</div>
+        <a href="desafio_08.html" target="_blank" class="challenge-link">Abrir Desafio</a>
+      </li>
+    </ul>
+  </div>
 </body>
 </html>
-
