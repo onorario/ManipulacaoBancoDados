@@ -1,0 +1,58 @@
+---
+title: "Desafio-01"
+author: "Luiz Fernando de Oliveira Pereira RA:267356"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+## Quarto
+
+```{r}
+library(reticulate)
+```
+
+```{r}
+
+ini <- Sys.time() #Defnie o horário inicial antes de ler
+dados <- read.csv(unz('dados/flights.csv.zip', "flights.csv")) #Lê o arquivo compactado, a função unz abre o arquivo ZIP e lê o dataframe contido nele
+fim <- Sys.time() #Marca o horário final após a leitura
+fim - ini #Diferença entre tempo inicial e final
+```
+
+```{r}
+library(readr)
+ini <- Sys.time() #Defnie o horário inicial antes de ler
+dados <- read_csv('dados/flights.csv.zip') #read_csv reconhece o arquivo zip diretamente e já lê diretamente
+fim <- Sys.time() #Marca o horário final após a leitura
+fim - ini #Diferença entre tempo inicial e final
+
+```
+
+```{r}
+py_install("pandas")
+```
+
+```{r}
+pd <- import("pandas")
+print(pd)
+
+```
+
+```{python}
+import time
+import pandas as pd
+ini = time.time() #Defnie o horário inicial antes de ler
+
+# Lendo o CSV dentro do ZIP usando pandas
+# - compression="zip" indica que o arquivo está compactado
+# - header=0 diz que a primeira linha contém os nomes das colunas
+# - sep="," define que o separador de campos é vírgula
+# - low_memory=False faz uma leitura mais consistente (melhor inferência de tipos)
+
+dados = pd.read_csv("dados/flights.csv.zip", compression="zip", header=0, sep=",", low_memory=False) 
+fim = time.time() #Marca o horário final após a leitura
+fim - ini #Diferença entre tempo inicial e final
+
+```
