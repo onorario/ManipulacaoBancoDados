@@ -48,6 +48,142 @@
       100% { transform: translateY(-200px) }
     }
 
+    /* Planetas orbitando */
+    .planet {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .planet-1 {
+      width: 60px;
+      height: 60px;
+      background: radial-gradient(circle at 30% 30%, #ff6b6b, #d63031, #2d3436);
+      top: 20%;
+      left: -60px;
+      animation: orbit-1 25s linear infinite;
+      box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+    }
+
+    .planet-2 {
+      width: 40px;
+      height: 40px;
+      background: radial-gradient(circle at 30% 30%, #74b9ff, #0984e3, #2d3436);
+      top: 60%;
+      left: -40px;
+      animation: orbit-2 35s linear infinite;
+      box-shadow: 0 0 15px rgba(116, 185, 255, 0.3);
+    }
+
+    .planet-3 {
+      width: 80px;
+      height: 80px;
+      background: radial-gradient(circle at 30% 30%, #fd79a8, #e84393, #2d3436);
+      top: 80%;
+      left: -80px;
+      animation: orbit-3 45s linear infinite;
+      box-shadow: 0 0 25px rgba(253, 121, 168, 0.3);
+    }
+
+    .planet-4 {
+      width: 30px;
+      height: 30px;
+      background: radial-gradient(circle at 30% 30%, #00b894, #00a085, #2d3436);
+      top: 40%;
+      left: -30px;
+      animation: orbit-4 30s linear infinite;
+      box-shadow: 0 0 12px rgba(0, 184, 148, 0.3);
+    }
+
+    @keyframes orbit-1 {
+      0% { transform: translateX(-60px) rotate(0deg); }
+      100% { transform: translateX(calc(100vw + 60px)) rotate(360deg); }
+    }
+
+    @keyframes orbit-2 {
+      0% { transform: translateX(-40px) rotate(0deg); }
+      100% { transform: translateX(calc(100vw + 40px)) rotate(-360deg); }
+    }
+
+    @keyframes orbit-3 {
+      0% { transform: translateX(-80px) rotate(0deg); }
+      100% { transform: translateX(calc(100vw + 80px)) rotate(720deg); }
+    }
+
+    @keyframes orbit-4 {
+      0% { transform: translateX(-30px) rotate(0deg); }
+      100% { transform: translateX(calc(100vw + 30px)) rotate(-180deg); }
+    }
+
+    /* Nave espacial */
+    .spaceship {
+      position: fixed;
+      width: 80px;
+      height: 40px;
+      top: 15%;
+      left: -100px;
+      pointer-events: none;
+      z-index: -1;
+      animation: spaceship-fly 60s linear infinite;
+    }
+
+    .spaceship::before {
+      content: '';
+      position: absolute;
+      width: 0;
+      height: 0;
+      border-left: 40px solid #00ffff;
+      border-top: 15px solid transparent;
+      border-bottom: 15px solid transparent;
+      left: 0;
+      top: 5px;
+      filter: drop-shadow(0 0 10px #00ffff);
+    }
+
+    .spaceship::after {
+      content: '';
+      position: absolute;
+      width: 30px;
+      height: 20px;
+      background: linear-gradient(90deg, #74b9ff, #0984e3);
+      border-radius: 50%;
+      right: 0;
+      top: 10px;
+      filter: drop-shadow(0 0 8px #74b9ff);
+    }
+
+    /* Propulsão da nave */
+    .spaceship-trail {
+      position: absolute;
+      width: 60px;
+      height: 8px;
+      background: linear-gradient(90deg, transparent, #ff7675, #fd79a8, transparent);
+      right: -60px;
+      top: 16px;
+      border-radius: 50px;
+      animation: trail-pulse 0.5s ease-in-out infinite alternate;
+      filter: blur(1px);
+    }
+
+    @keyframes spaceship-fly {
+      0% { 
+        transform: translateX(-100px) translateY(0px);
+        opacity: 0;
+      }
+      5% { opacity: 1; }
+      95% { opacity: 1; }
+      100% { 
+        transform: translateX(calc(100vw + 100px)) translateY(-20px);
+        opacity: 0;
+      }
+    }
+
+    @keyframes trail-pulse {
+      0% { opacity: 0.5; transform: scaleX(0.8); }
+      100% { opacity: 1; transform: scaleX(1.2); }
+    }
+
     .container {
       max-width: 900px;
       margin: 0 auto;
@@ -257,6 +393,8 @@
     .challenge-card:nth-child(6) { animation-delay: 0.6s; }
     .challenge-card:nth-child(7) { animation-delay: 0.7s; }
     .challenge-card:nth-child(8) { animation-delay: 0.8s; }
+    .challenge-card:nth-child(9) { animation-delay: 0.9s; }
+    .challenge-card:nth-child(10) { animation-delay: 1.0s; }
 
     @keyframes fadeInUp {
       to {
@@ -289,7 +427,7 @@
       <li class="challenge-card">
         <div class="challenge-number">2</div>
         <div class="challenge-title">Desafio 02 (Python)</div>
-        <div class="challenge-description">Segundo desafio do caminho</div>
+        <div class="challenge-description">Desafio focado em Python - Versão 1</div>
         <a href="desafio_02_python (1).html" target="_blank" class="challenge-link">Abrir Desafio</a>
       </li>
       
@@ -310,7 +448,7 @@
       <li class="challenge-card">
         <div class="challenge-number">5</div>
         <div class="challenge-title">Desafio 05</div>
-        <div class="challenge-description">Quinto desafio da caminhada</div>
+        <div class="challenge-description">Quinto desafio da sequência</div>
         <a href="Desafio_05.html" target="_blank" class="challenge-link">Abrir Desafio</a>
       </li>
       
