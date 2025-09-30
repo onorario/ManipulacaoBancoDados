@@ -1,0 +1,148 @@
+---
+title: "Desafio_09"
+auhtor: "Luiz Fernando de Oliveira Pereira RA:267356"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+## Quarto
+
+```{r}
+library(readr)
+library(DBI)
+library(RSQLite)
+library(dplyr)
+```
+
+1.  Crie um arquivo de banco de dados em SQLite chamado `voos.sqlite3`. (Dica: o comando `dbConnect()` se conecta num banco de dados se o arquivo apontado existir ou cria um novo, caso o arquivo não exista.)
+
+```{r}
+# Conectando o banco de dados
+con <- dbConnect(RSQLite::SQLite(), "voos.sqlite3")
+
+```
+
+2.  Leia os arquivos `airlines.csv` e `airports.csv`. Deposite o conteúdo de cada um destes arquivos nas tabelas, respectivamente, `airlines` e `airports`. Utilize o comando `dbWriteTable()` para isso.
+
+```{r}
+airlines <- read_csv("airlines.csv")
+airports <- read_csv("airports.csv")
+
+dbWriteTable(con, "airlines", airlines, overwrite = TRUE)
+dbWriteTable(con, "airports", airports, overwrite = TRUE)
+
+```
+
+3.  Crie uma função chamada `lerDados` contendo 2 argumentos, `input` e `pos`. A função deve apresentar ao usuário uma mensagem de progresso da leitura do arquivo `flights.csv` (utilize o comando `message()`), aos moldes do apresentado abaixo. A função deve salvar apenas os vôos que partiram ou chegaram aos seguintes aeroportos `BWI`, `MIA`, `SEA`, `SFO` e `JFK`, numa tabela chamada `flights`. Observe que a função não deve retornar nada para o usuário, deve apenas gravar a tabela obtida do chunk no banco de dados. (Dica: utilize o comando `dbWriteTable()` e estude como o argumento `append` deve ser utilizado para permitir que os *chunks* intermediários sejam adicionados ao fim da tabela.)
+
+```{r}
+
+lerDados <- function(x, pos) {
+  # mensagem de progresso
+  message("Lendo chunk na posição: ", pos)
+
+  # 1) padroniza nomes das colunas: lowercase + substitui caracteres estranhos por "_"
+  names(x) <- tolower(names(x))
+  names(x) <- gsub("[^a-z0-9]+", "_", names(x))
+
+  # 2) lista das colunas que queremos (padronizadas em lowercase)
+  required <- c(
+    "year", "month", "day", "airline", "flight_number",
+    "origin_airport", "destination_airport", "arrival_delay"
+  )
+
+  # 3) Se alguma coluna não existir no chunk, cria-a com NA (para não quebrar a seleção)
+  miss <- setdiff(required, names(x))
+  if (length(miss) > 0) {
+    message("Chunk ", pos, ": colunas faltantes detectadas -> ", paste(miss, collapse = ", "),
+            ". Serão criadas como NA para manter consistência.")
+    for (col in miss) x[[col]] <- NA
+  }
+
+  # 4) Seleciona apenas as colunas que nos interessam (na ordem definida)
+  x_sel <- dplyr::select(x, all_of(required))
+
+  # 5) Filtra apenas voos que PARTIRAM ou CHEGARAM nos aeroportos de interesse
+  aeroportos_alvo <- c("BWI", "MIA", "SEA", "SFO", "JFK")
+  # uso toupper() para comparar independentemente de caixa
+  x_filtrado <- x_sel %>%
+    filter(toupper(origin_airport) %in% aeroportos_alvo |
+           toupper(destination_airport) %in% aeroportos_alvo)
+
+  # 6) Se não houver linhas após filtro, pular escrita
+  if (nrow(x_filtrado) == 0) {
+    message("Chunk ", pos, ": sem voos dos aeroportos alvo — pulando escrita.")
+    return(invisible(NULL))
+  }
+
+  # 7) Escrever no banco: criar tabela na primeira vez; depois append
+  #    (evita erro de 'append = TRUE' quando tabela ainda não existe)
+  if (!dbExistsTable(con, "flights")) {
+    # cria a tabela com as colunas do data.frame do primeiro chunk
+    dbWriteTable(con, "flights", x_filtrado, overwrite = TRUE)
+    message("Tabela 'flights' criada (primeiro chunk gravado).")
+  } else {
+    # adiciona os registros ao final da tabela existente
+    dbWriteTable(con, "flights", x_filtrado, append = TRUE)
+  }
+
+  invisible(NULL)  # garante que nada seja retornado (SideEffect)
+}
+
+
+```
+
+```{r}
+# Simulando um valor para 'pos'
+pos = 1000
+message("Leitura atingiu a linha ", pos)
+```
+
+4.  Leia o arquivo `flights.csv`, restringindo-se às colunas `YEAR`, `MONTH`, `DAY`, `AIRLINE`, `FLIGHT_NUMBER`, `ORIGIN_AIRPORT`, `DESTINATION_AIRPORT` e `ARRIVAL_DELAY`, e aplique a função `lerDados()` criada acima. Observe, novamente, que a função `lerDados()` não retorna nada para o usuário. Por isso, a função de callback a ser utilizada é `SideEffectChunkCallback$new()`. Leia 100 mil registros por vez.
+
+```{r}
+
+callback <- SideEffectChunkCallback$new(lerDados)
+
+read_csv_chunked(
+  file = "flights.csv",
+  callback = callback,
+  chunk_size = 100000,   # 100k registros por vez
+  progress = FALSE        # Minimizando progresso
+)
+
+```
+
+5.  Acesse o banco de dados e, por meio de uma chamada em SQL, apresente o tempo médio de atraso de chegada por aeroporto de destino, a sigla do aeroporto, o nome completo do aeroporto e o nome completo da companhia aérea. Ordene o resultado (na mesma chamada de SQL) por ordem decrescente deste atraso médio (i.e., o primeiro registro deve ser o aeroporto que tem o maior tempo de atraso na chegada). Atente para o fato de que o mesmo nome de coluna pode acontecer em diferentes tabelas.
+
+```{r}
+query <- "
+SELECT 
+    f.destination_airport AS sigla_aeroporto,
+    a.AIRPORT           AS nome_aeroporto,   -- alterando para o nome da coluna correta em airports
+    l.AIRLINE           AS nome_companhia,   -- alterando para o nome da coluna correta em airlines
+    AVG(f.arrival_delay) AS atraso_medio
+FROM flights f
+JOIN airports a 
+    ON f.destination_airport = a.IATA_CODE
+JOIN airlines l 
+    ON f.airline = l.IATA_CODE
+GROUP BY f.destination_airport, a.AIRPORT, l.AIRLINE
+ORDER BY atraso_medio DESC
+"
+
+resultados <- dbGetQuery(con, query)
+head(resultados, 20)
+```
+
+```{r}
+dbDisconnect(con)
+
+```
+
+```{r}
+#Horário e dia em que o Html foi gerado
+format(Sys.time(), "%d/%m/%Y %H:%M:%S")
+```
