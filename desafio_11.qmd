@@ -1,0 +1,238 @@
+---
+title: "Desafio 11"
+author: "Luiz Fernando de Oliveira Pereira RA:267356"
+format: 
+  html: 
+    self-contained: true
+editor: visual
+---
+
+## Quarto
+
+```{python}
+import polars as pl
+```
+
+1.  Utilizando o arquivo `renda_adulta.csv` e sabendo que ele não possui cabeçalho, faça a importação do banco de dados utilizando os nomes das colunas conforme apresentado acima e na sequência ali indicada. No momento da importação do arquivo, você deve, também, indicar os tipos de cada uma das colunas. Utilize o fato de que o símbolo `?` representa valores faltantes.
+
+```{python}
+# Definindo os nomes de cada coluna
+nomes_colunas = [
+    "age", "workclass", "fnlwgt", "education", "education_num",
+    "marital_status", "occupation", "relationship", "race", "sex",
+    "capital_gain", "capital_loss", "hours_per_week", "native_country", "income"
+]
+
+```
+
+```{python}
+
+#Definindo o o que cada coluna é, seu tipo
+
+tipos_colunas = {
+    "age": pl.Int64,
+    "workclass": pl.Utf8,
+    "fnlwgt": pl.Int64,
+    "education": pl.Utf8,
+    "education_num": pl.Int64,
+    "marital_status": pl.Utf8,
+    "occupation": pl.Utf8,
+    "relationship": pl.Utf8,
+    "race": pl.Utf8,
+    "sex": pl.Utf8,
+    "capital_gain": pl.Int64,
+    "capital_loss": pl.Int64,
+    "hours_per_week": pl.Int64,
+    "native_country": pl.Utf8,
+    "income": pl.Utf8
+}
+
+```
+
+```{python}
+
+
+#Importando o banco de dados e colocando o cabeçalho nele
+
+renda_adulta = pl.read_csv(
+    "renda_adulta.csv",
+    has_header=False, # = False, pois não tejm cabeçalho
+    new_columns=nomes_colunas,
+    dtypes=tipos_colunas,
+    null_values="?"
+)
+
+```
+
+```{python}
+#Dando uma espiada nos dados
+renda_adulta.head(10)
+
+```
+
+2.  Apresente os tipos de cada uma das coluna.
+
+```{python}
+# Apresentando os tipos de cada coluna
+renda_adulta.schema
+```
+
+3.  Apresente as dimensões da tabela de dados.
+
+```{python}
+# Apresentando as dimensões da tabela de dados
+renda_adulta.shape
+```
+
+4.  Quantas pessoas recebem acima de \$50.000 e quantas pessoas recebem abaixo deste limiar?
+
+```{python}
+# Contando e separando em dois grupos
+renda_adulta.group_by("income").count()
+
+```
+
+5.  Crie um objeto chamado `renda_longo`, no qual você transforma as colunas `capital-gain` e `capital-loss` (formato *wide*) para formato longo. Os valores destas variáveis devem ser armazenados numa nova coluna chamada `Valor` e os tipos de valores (*gain* e *loss*) devem ser armazenados numa coluna chamada `tipo`.
+
+```{python}
+# Criando o dataset no formato longo
+renda_longo = renda_adulta.unpivot(
+    index=[
+        "age", "workclass", "fnlwgt", "education", "education_num",
+        "marital_status", "occupation", "relationship", "race", "sex",
+        "hours_per_week", "native_country", "income"
+    ],
+    on=["capital_gain", "capital_loss"],
+    variable_name="tipo",
+    value_name="Valor"
+)
+
+# Visualizando as primeiras linhas do novo formato
+renda_longo.head(10)
+```
+
+6.  Quais são as médias de horas trabalhadas por classe salarial?
+
+```{python}
+# Calculando a média de horas trabalhadas por classe salarial
+media_horas_por_renda = (
+    renda_adulta
+    .group_by("income")
+    .agg(pl.col("hours_per_week").mean().alias("media_horas"))
+)
+
+media_horas_por_renda
+```
+
+7.  Se cada linha representa uma pessoa, quantas pessoas foram amostradas em cada profissão?
+
+```{python}
+# Contar quantas pessoas há em cada profissão
+pessoas_por_profissao = (
+    renda_adulta
+    .group_by("occupation")
+    .count()
+    .sort("count", descending=True)  # Ordena da profissão mais comum à menos
+)
+
+pessoas_por_profissao
+```
+
+8.  Crie um gráfico de barras que apresente o número médio de horas trabalhadas semanalmente em função do nível salarial.
+
+    ```{r}
+    #Definindo o local do python que irei utilizar
+    library(reticulate)
+    use_python("C:/Program Files/Python312/python.exe", required = TRUE)
+    ```
+
+    ```{python}
+    #importando a biblioteca
+    import matplotlib.pyplot as plt
+    ```
+
+```{python}
+
+# Agrupando os dados por 'income' e calcular a média de 'hours_per_week'
+# pl.col("hours_per_week").mean() calcula a média das horas
+# .alias("media_horas") renomeia a coluna de saída para 'media_horas'
+media_horas_por_renda = (
+    renda_adulta
+    .group_by("income")              # Agrupa os registros por nível de renda
+    .agg(pl.col("hours_per_week").mean().alias("media_horas"))
+    .sort("income")                  # Ordena os resultados por renda para visualização
+)
+
+# Converter para pandas, porque matplotlib funciona melhor com pandas
+media_horas_df = media_horas_por_renda.to_pandas()
+
+# Criar gráfico de barras
+plt.figure(figsize=(6,4))                                   # Define o tamanho da figura
+plt.bar(
+    media_horas_df["income"],                                # Eixo X: categorias de renda
+    media_horas_df["media_horas"],                           # Eixo Y: média de horas
+    color=["#4C72B0", "#55A868"]                             # Cores das barras
+)
+plt.xlabel("Nível de Renda")                                 # Legenda eixo X
+plt.ylabel("Média de Horas Semanais")                       # Legenda eixo Y
+plt.title("Média de horas trabalhadas por classe de renda") # Título do gráfico
+plt.grid(axis='y', linestyle='--', alpha=0.6)               # Adiciona linhas de grade horizontais
+plt.show()                                                   # Exibe o gráfico
+
+
+
+
+```
+
+9.  **Desafio**: existe alguma evidência de discriminação salarial entre gêneros biológicos?
+
+```{python}
+# Agrupando por 'sex' e 'income', e contando o número de registros em cada combinação
+# O .count() cria uma coluna com o número de pessoas
+renda_por_genero = (
+    renda_adulta
+    .group_by(["sex", "income"])  # Agrupando por gênero e nível de renda
+    .count()                      # Contando o número de pessoas em cada grupo
+    .sort(["sex", "income"])      # Ordenando para facilitar a visualização
+)
+
+# Convertendo para pandas para facilitar manipulação e gráfico
+renda_genero_df = renda_por_genero.to_pandas()
+
+# Calculando a proporção de pessoas com cada nível de renda dentro de cada gênero
+# .transform("sum") calcula o total de pessoas por gênero
+total_por_genero = renda_genero_df.groupby("sex")["count"].transform("sum")
+renda_genero_df["proporcao"] = renda_genero_df["count"] / total_por_genero
+
+# Criar gráfico de barras lado a lado para comparar homens e mulheres
+plt.figure(figsize=(7,4))  
+
+for sexo in renda_genero_df["sex"].unique():      # Para cada gênero
+    dados = renda_genero_df[renda_genero_df["sex"] == sexo]  # Filtra os dados do gênero
+    
+     # Define cor personalizada
+    if sexo.lower() == "male":
+        cor = "#1E90FF"  # Azul pastel
+    else:
+        cor = "#8B008B"  # Vermelho pastel
+    
+    plt.bar(
+        dados["income"],           # Eixo X: nível de renda
+        dados["proporcao"],        # Eixo Y: proporção dentro do gênero
+        alpha=0.7,                 # Transparência das barras
+        label=sexo,                 # Nome do gênero para legenda
+        color=cor                   # Definindo a cor
+    )
+
+plt.xlabel("Nível de Renda")                     # Legenda eixo X
+plt.ylabel("Proporção dentro do gênero")        # Legenda eixo Y
+plt.title("Distribuição de renda por gênero")   # Título do gráfico
+plt.legend(title="Sexo")                         # Adiciona legenda com título
+plt.grid(axis="y", linestyle="--", alpha=0.6)   # Linhas de grade horizontais
+plt.show()                                      # Exibe o gráfico
+```
+
+```{r}
+#Horário e dia em que o Html foi gerado
+format(Sys.time(), "%d/%m/%Y %H:%M:%S")
+```
