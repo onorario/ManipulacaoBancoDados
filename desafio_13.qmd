@@ -1,0 +1,195 @@
+---
+title: "Desafio 13"
+author: "Luiz Fernando de Oliveira Pereira RA:267356"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+## Quarto
+
+## Atividades
+
+```{r}
+#install.packages("RSQLite")
+library(RSQLite)   # Para criar e manipular o banco de dados SQLite
+library(readr)     # Para ler arquivos .tsv.gz rapidamente
+
+```
+
+1.  Crie um banco de dados SQLite utilizando os 3 arquivos acima. O banco de dados deve conter as seguintes tabelas: `basics`, `ratings` e `principals`
+
+    ```{r}
+
+    # Ler os arquivos e substituir \N por NA
+    basics <- read_tsv("title.basics0.tsv.gz", na = "\\N")
+    principals <- read_tsv("title.principals0.tsv.gz", na = "\\N")
+    ratings <- read_tsv("title.ratings.tsv.gz", na = "\\N")
+
+    ```
+
+    ```{r}
+    # Cria o arquivo do banco
+    con <- dbConnect(RSQLite::SQLite(), "imdb_movies.sqlite")
+
+    ```
+
+    ```{r}
+
+    # Remover as tabelas caso já existam no banco de dados
+    if (dbExistsTable(con, "basics")) dbRemoveTable(con, "basics")
+    if (dbExistsTable(con, "principals")) dbRemoveTable(con, "principals")
+    if (dbExistsTable(con, "ratings")) dbRemoveTable(con, "ratings")
+
+    # Escrever cada dataframe como uma tabela no banco
+    dbWriteTable(con, "basics", basics)
+    dbWriteTable(con, "principals", principals)
+    dbWriteTable(con, "ratings", ratings)
+
+    ```
+
+2.  (**Utilizando SQL**, responda): Quais são os 5 filmes com as maiores notas (`averageRating`)? Apresente uma solução capaz de desempatar os filmes baseando-se no número de votos recebidos.
+
+    ```{r}
+    dbGetQuery(con, "
+        -- Seleciona três colunas principais:
+        SELECT 
+            b.primaryTitle AS titulo,      -- Nome do filme (coluna renomeada para 'titulo')
+            r.averageRating AS nota,       -- Nota média do filme (renomeada para 'nota')
+            r.numVotes AS votos            -- Número de votos recebidos (renomeada para 'votos')
+
+        -- Define de quais tabelas os dados virão:
+        FROM ratings AS r                 -- Tabela 'ratings' (apelidada como 'r')
+        JOIN basics AS b                  -- Junta com a tabela 'basics' (apelidada como 'b')
+            ON b.tconst = r.tconst        -- Condição de junção: o código do título (tconst) deve ser o mesmo em ambas
+
+        -- Filtra para considerar apenas filmes (exclui séries, curtas, etc.)
+        WHERE b.titleType = 'movie'
+
+        -- Ordena os resultados:
+        ORDER BY 
+            r.averageRating DESC,         -- Primeiro pela nota (da maior para a menor)
+            r.numVotes DESC               -- Em caso de empate na nota, desempata pelo número de votos (da maior para a menor)
+
+        -- Limita o resultado aos 5 primeiros filmes
+        LIMIT 5;
+    ")
+
+    ```
+
+3.  (**Utilizando SQL**, responda): Qual é o gênero mais frequente entre os filmes com nota maior que 8?
+
+    ```{r}
+    dbGetQuery(con, "
+    -- Primeira CTE: separa a primeira parte do gênero e o restante após a vírgula
+    WITH generos_explodidos AS (
+        SELECT 
+            b.tconst,  -- identificador único do título
+            -- Pega o primeiro gênero (antes da primeira vírgula)
+            TRIM(SUBSTR(
+                b.genres, 
+                1, 
+                CASE 
+                    WHEN instr(b.genres, ',') > 0 THEN instr(b.genres, ',') - 1
+                    ELSE LENGTH(b.genres)
+                END
+            )) AS genero1,
+
+            -- Pega o resto da string (tudo depois da primeira vírgula)
+            CASE 
+                WHEN instr(b.genres, ',') > 0 
+                THEN TRIM(SUBSTR(b.genres, instr(b.genres, ',') + 1))
+                ELSE NULL
+            END AS resto
+
+        FROM basics AS b
+        JOIN ratings AS r 
+            ON b.tconst = r.tconst  -- junta informações de nota com o título
+        WHERE r.averageRating > 8   -- filtra apenas filmes com nota maior que 8
+          AND b.genres IS NOT NULL  -- ignora linhas sem gênero
+          AND b.genres != '\\N'     -- ignora valores faltantes do IMDb
+    ),
+
+    -- Segunda CTE: 'explode' os gêneros em múltiplas linhas
+    todos_generos AS (
+        -- Primeiro gênero (sempre existe)
+        SELECT genero1 AS genero 
+        FROM generos_explodidos
+
+        UNION ALL
+
+        -- Segundo gênero (se existir)
+        SELECT TRIM(SUBSTR(
+            resto, 
+            1, 
+            CASE 
+                WHEN instr(resto, ',') > 0 THEN instr(resto, ',') - 1
+                ELSE LENGTH(resto)
+            END
+        ))
+        FROM generos_explodidos 
+        WHERE resto IS NOT NULL
+
+        UNION ALL
+
+        -- Terceiro gênero (se existir)
+        SELECT TRIM(SUBSTR(resto, instr(resto, ',') + 1))
+        FROM generos_explodidos 
+        WHERE instr(resto, ',') > 0
+    )
+
+    -- Consulta final: conta quantas vezes cada gênero aparece
+    SELECT 
+        genero, 
+        COUNT(*) AS quantidade
+    FROM todos_generos
+    WHERE genero IS NOT NULL AND genero != ''  -- remove vazios ou nulos
+    GROUP BY genero                            -- agrupa por gênero
+    ORDER BY quantidade DESC                   -- ordena do mais frequente ao menos
+    LIMIT 1;                                   -- mostra apenas o gênero mais comum
+    ")
+
+    ```
+
+4.  (**Utilizando SQL**, responda): Quais são os 3 atores/atrizes que mais participaram de filmes com nota maior que 7.5?
+
+    ```{r}
+    dbGetQuery(con, "
+        -- Seleciona as colunas desejadas
+        SELECT 
+            p.nconst AS id_pessoa,              -- ID único da pessoa (ator ou atriz)
+            p.category AS categoria,            -- Categoria da pessoa (actor ou actress)
+            COUNT(DISTINCT p.tconst) AS total_filmes  -- Conta quantos filmes distintos essa pessoa participou
+
+        -- Define as tabelas que serão utilizadas e como elas se relacionam
+        FROM principals AS p                    -- Tabela 'principals' contém quem trabalhou em cada título
+        JOIN ratings AS r ON p.tconst = r.tconst -- Junta com 'ratings' para acessar as notas dos filmes
+        JOIN basics AS b ON p.tconst = b.tconst  -- Junta com 'basics' para filtrar apenas filmes
+
+        -- Define as condições (filtros)
+        WHERE r.averageRating > 7.5             -- Considera apenas filmes com nota maior que 7.5
+          AND (p.category = 'actor' OR p.category = 'actress')  -- Inclui apenas atores e atrizes
+          AND b.titleType = 'movie'             -- Filtra apenas títulos que são filmes
+
+        -- Agrupa os resultados por pessoa e categoria
+        GROUP BY p.nconst, p.category            -- Necessário para contar os filmes de cada ator/atriz
+
+        -- Ordena o resultado
+        ORDER BY total_filmes DESC               -- Ordena de forma decrescente (quem participou de mais filmes aparece primeiro)
+
+        -- Mostra apenas os 5 primeiros resultados
+        LIMIT 5;
+    ")
+
+    ```
+
+```{r}
+dbDisconnect(con)
+```
+
+```{r}
+
+#Horário e dia em que o Html foi gerado
+format(Sys.time(), "%d/%m/%Y %H:%M:%S")
+```
