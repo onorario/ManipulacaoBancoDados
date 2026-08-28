@@ -16,14 +16,13 @@
 
 ## 🎯 Visão Geral e Objetivos
 
-O objetivo principal da disciplina foi capacitar o tratamento eficiente do ciclo de vida dos dados — desde a coleta e higienização até a transformação e exploração visual —, aplicando técnicas analíticas em múltiplos ambientes computacionais.
+O objetivo principal da disciplina foi capacitar o tratamento eficiente do ciclo de vida dos dados — focado na limpeza, transformação e exploração visual —, aplicando técnicas analíticas em múltiplos ambientes computacionais.
 
 ### 📚 Principais Competências Desenvolvidas
 
-* **Extração & Ingestão:** Leitura e importação de bases em múltiplos formatos estruturados e semiestruturados.
+* **Extração:** Leitura e importação de bases em múltiplos formatos estruturados e semiestruturados.
 * **Wrangling & Limpeza:** Tratamento de inconsistências, padronização, agregação e reestruturação de datasets.
-* **Visualização Analítica:** Construção de gráficos e relatórios visuais orientados a insights.
-* **Lógica Computacional:** Desenvolvimento de funções customizadas, modularização e estruturas de controle de fluxo.
+* **Visualização Analítica:** Construção de gráficos e relatórios visuais.
 * **Ambiente Multilinguagem:** Aplicação comparativa e integrada de fluxos em **R**, **Python** e **Julia**.
 
 ---
