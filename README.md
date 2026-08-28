@@ -22,7 +22,7 @@ O objetivo principal da disciplina foi capacitar o tratamento eficiente do ciclo
 
 * **Extração:** Leitura e importação de bases em múltiplos formatos estruturados e semiestruturados.
 * **Wrangling & Limpeza:** Tratamento de inconsistências, padronização, agregação e reestruturação de datasets.
-* **Visualização Analítica:** Construção de gráficos e relatórios visuais.
+* **Visualização Analítica:** Construção de gráficos e visualizações analíticas.
 * **Ambiente Multilinguagem:** Aplicação comparativa e integrada de fluxos em **R**, **Python** e **Julia**.
 
 ---
@@ -45,5 +45,4 @@ O conteúdo está organizado da seguinte forma:
 
 ```text
 ├── 📂 desafios/          # Atividades e listas práticas semanais
-├── 📂 projeto-final/     # Aplicação completa, scripts de análise e relatório final
 └── 📄 README.md          # Documentação principal
