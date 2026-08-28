@@ -3,7 +3,7 @@
 # 🗄️ ME315 — Manipulação de Banco de Dados
 **Universidade Estadual de Campinas (UNICAMP)**
 
-[![GitHub Pages](https://img.shields.io/badge/Acessar-GitHub%20Pages-blue?style=for-the-badge&logo=githubpages&logoColor=white)](https://onorario.github.io/)
+[![GitHub Pages](https://img.shields.io/badge/Acessar-GitHub%20Pages-blue?style=for-the-badge&logo=githubpages&logoColor=white)](https://onorario.github.io/ManipulacaoBancoDados/)
 [![Status](https://img.shields.io/badge/Status-Concluído-success?style=for-the-badge)](#)
 
 <p align="center">
