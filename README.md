@@ -7,7 +7,7 @@
 [![Status](https://img.shields.io/badge/Status-Concluído-success?style=for-the-badge)](#)
 
 <p align="center">
-  Repositório dedicado aos desafios práticos e ao projeto final desenvolvidos ao longo da disciplina <b>ME315</b>.
+  Repositório dedicado aos desafios práticos e ao projeto final desenvolvidos ao longo da disciplina de Banco de Dados <b>ME315</b>.
 </p>
 
 </div>
